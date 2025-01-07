@@ -38,15 +38,15 @@ def solve(x:Node, g:list):                                          # Solve the 
     agent  = x.agent
     obj    = g[0]
     goal   = [*g[1], 0.2]
-    config.addFrame("subgoal", "world", "shape:ssBox, size:[0.2 0.2 .1 .005], color:[1. .3 .3 0.9], contact:0, logical:{table}").setPosition(goal)                        # Add goal frame
+    sg = config.addFrame("subgoal", "world", "shape:ssBox, size:[0.2 0.2 .1 .005], color:[1. .3 .3 0.9], contact:0, logical:{table}").setPosition(goal)                        # Add goal frame
 
-    komo = ry.KOMO(config, phases=3, slicesPerPhase=1, kOrder=1, enableCollisions=True)                            # Initialize LGP
+    komo = ry.KOMO(config, phases=2, slicesPerPhase=5, kOrder=1, enableCollisions=True)                            # Initialize LGP
 
     komo.addObjective( [0,1], ry.FS.distance, [obj, agent], ry.OT.eq, scale=1e2)   # Pick constaints     
-    komo.addModeSwitch([1,2], ry.SY.stable, [agent, obj], True)
+    komo.addModeSwitch([1,-1], ry.SY.stable, [agent, obj], True)
                                                                                         
-    komo.addObjective( [2,3] , ry.FS.aboveBox, [obj, "subgoal"], ry.OT.ineq, scale=1e3)  # Place constraints         
-    komo.addModeSwitch([3,-1], ry.SY.stableOn, ["floor", agent])
+    komo.addObjective( [1,-1] , ry.FS.aboveBox, [obj, "subgoal"], ry.OT.ineq, scale=1e3)  # Place constraints         
+    komo.addModeSwitch([2,-1], ry.SY.stableOn, ["floor", agent])
 
     komo.addObjective([], ry.FS.accumulatedCollisions, [], ry.OT.eq, scale=1e2)                                    # Collision avoidance
 
@@ -58,9 +58,54 @@ def solve(x:Node, g:list):                                          # Solve the 
 
     pf = komo.getPathFrames()[-1]
     config.setFrameState(pf)
-    #config.view(True, "Frame state")         
+    del sg
+
+    if ret.feasible:
+        config.view(True, "Feas Config")
 
     return config, ret.feasible
+
+def sub_solve(x:Node, g:list):                                          # Solve the task from the current configuration x to the end goal g
+    print("Running sub solve")
+    config = ry.Config()
+    config.addConfigurationCopy(x.C)
+    agent  = x.agent
+    obj    = g[0]
+    goal   = [*g[1], 0.2]
+    config.addFrame("subgoal", "world", "shape:ssBox, size:[0.2 0.2 .1 .005], color:[1. .3 .3 0.9], contact:0, logical:{table}").setPosition(goal)                        # Add goal frame
+
+    komo1 = ry.KOMO(config, phases=1, slicesPerPhase=5, kOrder=1, enableCollisions=True)                            # Initialize LGP
+    komo1.addObjective([0,-1], ry.FS.distance, [obj, agent], ry.OT.eq, scale=1e2)                                     # Pick
+    komo1.addModeSwitch([1,-1], ry.SY.stable, [agent, obj], True)
+    komo1.addObjective([], ry.FS.accumulatedCollisions, [], ry.OT.eq, scale=1e2) 
+    ry.NLP_Solver(komo1.nlp(), verbose=0).solve()              # Solve
+    config.setFrameState(komo1.getPathFrames()[-1])
+    q_agent = config.getJointState()
+    config.attach(agent, obj)
+    config.view(True, "Pick")
+
+    komo2 = ry.KOMO(config, phases=1, slicesPerPhase=5, kOrder=1, enableCollisions=True)                            # Initialize LGP
+    komo2.addObjective( [0,-1] , ry.FS.aboveBox, [obj, "subgoal"], ry.OT.ineq, scale=1e3)  # Place constraints         
+    komo2.addModeSwitch([1,-1], ry.SY.stableOn, ["floor", agent])
+    komo2.addObjective([], ry.FS.accumulatedCollisions, [], ry.OT.eq, scale=1e2) 
+    ry.NLP_Solver(komo2.nlp(), verbose=0).solve() 
+    config.setFrameState(komo2.getPathFrames()[-1])
+    q_goal = komo2.getPath_qAll()[-1][0:2]
+    config.view(True, "Place")
+
+    print(q_agent, q_goal)
+    rrt = ry.PathFinder()                                           # Solve Bi-Directional RRT
+    rrt.setProblem(config, [q_agent], [q_goal], collisionTolerance=0.01)
+    solution = rrt.solve()
+    feasible = solution.feasible
+
+    if feasible:
+        for js in solution.x:
+            config.setJointState(js)
+            config.view(False, "RRT")
+            time.sleep(0.01)
+
+    return config, feasible
 
 def reachable(x:Node, o:str):                                       # Return True if the agent can reach the object
     config       = ry.Config()
@@ -78,37 +123,84 @@ def reachable(x:Node, o:str):                                       # Return Tru
     #for js in solution.x:
     #    config.setJointState(js)
     #    config.view(False, "RRT")
-    #    time.sleep(0.03)
+    #    time.sleep(0.01)
 
     return solution.feasible
 
+def reachable_together(x:Node):                                       # Return True if the agent can reach the object
+    config       = ry.Config()
+    config.addConfigurationCopy(x.C)
+    o = x.o
+    pn = x.og[0:2]
+    obj = config.getFrame(o)
+    ag  = config.getFrame(x.agent)
+    q_agent  = config.getJointState()
+    
+    
+    if obj.getParent() != x.agent:
+        config.view(True, "not attach")
+        q_goal   = pn
+        del obj
+
+    else:
+        config.view(True, "attach")
+        pp = obj.getPosition()[0:2]
+        pd = pn - pp
+        q_agent = config.getJointState()+pd
+
+
+    rrt = ry.PathFinder()                                           # Solve Bi-Directional RRT
+    rrt.setProblem(config, [q_agent], [q_goal], collisionTolerance=0.01)
+    solution = rrt.solve()
+    feasible = solution.feasible
+    print("RRT is feasible: ", feasible)
+    if feasible:
+        for js in solution.x:
+            config.setJointState(js)
+            config.view(False, "RRT")
+            time.sleep(0.01)
+
+    return feasible
 
 def propose_subgoals(x:Node, o:str, method:str="random", n:int=100): # Propose subgoals for the agent
     config       = ry.Config()
     config.addConfigurationCopy(x.C)
     agent        = x.agent
     max_x, max_y = config.frame("floor").getSize()[0:2]
-    Z = []
+    Z            = {}
+    obj          = config.getFrame(o)    
+    op           = obj.getPosition()
 
     if method == "random":
 
         while len(Z) < n * 10:                                      # Propose 10n subgoals
+            config_base       = ry.Config()
+            config_base.addConfigurationCopy(config)
 
-            config.computeCollisions()                              # Check configuration before moving
-            collisions_old = config.getCollisions()
+            config_temp       = ry.Config()
+            config_temp.addConfigurationCopy(config)
+
+            config_temp.computeCollisions()
+            col_p = config_temp.getCollisions()
 
             px = np.random.uniform(-max_x/2, max_x/2)                # Generate random point
             py = np.random.uniform(-max_y/2, max_y/2)
-            config.frame(agent).setPosition([px, py, 0.2])
+            pn = [px, py, 0.2]
+        
+            obj.setPosition(pn) 
+                                                    # Set the object position to the random point
+            config_temp.computeCollisions()
+            col = config_temp.getCollisions()
 
-            config.computeCollisions()                              # Check if random point is feasible
-            collisions_new = config.getCollisions()
-            
-            if len(collisions_new) <= len(collisions_old):
-                Z.append(Node(x.C, [o, [px, py]], agent))
+            if len(col) != len(col_p):                               # Reject the point if it is in collision
+                continue
+
+            Z[Node(config_base, [o, [px, py]])] = score_function(Node(config_temp, [o, []]))
+
     
-    Z = sorted(Z, key=score_function, reverse=True)[0:n]                 # Sort the list using scoring function
-    return Z                                                   # Return the top n subgoals
+    Z = sorted(Z, key=Z.get, reverse=True)[0:n]                # Sort the list using scoring function
+    #Z.append(Node(config, [o, op]))                             # Add the original position as a subgoal
+    return Z                                                            # Return the top n subgoals
  
 def rej(L:list, xf:ry.Config, O:list):                                    # Reject the node if it is similar to the at most two nodes in L
     def calc_pos(config:ry.Config, O:list):                         # Calculate discretized position of the movable objects and agent

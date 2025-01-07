@@ -1,9 +1,9 @@
 import robotic as ry
-from utils import (select_node, solve, reachable, propose_subgoals, rej)
+from utils import (select_node, solve, sub_solve, reachable, propose_subgoals, rej)
 from Node import Node
 
 if __name__ == "__main__":
-    task = "../config/p3-maze.g"
+    task = "../config/p8-corner.g"
     EGO_NAME = "ego"
     OBJ_NAME = "obj"
 
@@ -41,17 +41,18 @@ if __name__ == "__main__":
             break
             
         for o in O:
+            print("If reachable")
             if not reachable(x, o):                                     # Check if agent can reach the object
                 continue
             
             Z = propose_subgoals(x, o, method="random", n=3)          # Propose subgoals
 
             for z in Z:
-                xf, feasible = solve(x, z.g)                               # Solve the subgoal
+                xf, feasible = sub_solve(x, z.g)                               # Solve the subgoal
                 
                 if feasible and not rej(L, xf, O):                      # Check if subgoal is config is feasible and not rejected
                     L.append(Node(xf, [o, z.g]))
-
+        is_first = False
     if not is_solved:
         print("No solution found")
 
