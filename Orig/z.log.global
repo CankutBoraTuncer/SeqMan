@@ -1,0 +1,18 @@
+** compiled at:     Nov 26 2024 16:46:14
+** execution start: 2025-01-07 10:53:17:380556
+graph.cpp:initParameters:1512(3) opening config file 'rai.cfg'
+graph.cpp:initParameters:1519(3)  - failed
+graph.cpp:initParameters:1525(3) opening base config file '/root/local/rai/../local.cfg'
+graph.cpp:initParameters:1531(3)  - failed
+util.cpp:cd_start:1034(3) entering path '/home/bora/Desktop/Bilkent_MS/SeqMan/Orig'
+util.cpp:cd_file:1042(3) entering path '../config' from '/home/bora/Desktop/Bilkent_MS/SeqMan/Orig'
+util.cpp:getIs:1071(3) opening input file 'p8-corner.g'
+util.cpp:cd_start:1034(3) entering path '/home/bora/Desktop/Bilkent_MS/SeqMan/config'
+util.cpp:getIs:1071(3) opening input file 'base-walls-min.g'
+util.cpp:cd_start:1034(3) entering path '/home/bora/Desktop/Bilkent_MS/SeqMan/config'
+util.cpp:cd_start:1034(3) entering path '/home/bora/Desktop/Bilkent_MS/SeqMan/Orig'
+** execution stop: 2025-01-07 10:53:20:13920
+** real time: 2.6334sec
+** CPU time: 1.55363
+
+** set+queried params:

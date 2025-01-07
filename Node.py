@@ -1,7 +1,7 @@
 import robotic as ry
 import numpy as np
 
-from utils import (sample_uniform_points, compute_heuristic, find_path_between_configurations, 
+from utils_old import (sample_uniform_points, compute_heuristic, find_path_between_configurations, 
                    move_on_path)
 
 class Node:
