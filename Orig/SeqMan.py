@@ -3,7 +3,7 @@ from utils import (select_node, solve, reachable, propose_subgoals, rej)
 from Node import Node
 
 if __name__ == "__main__":
-    task = "../config/p8-corner.g"
+    task = "../config/p3-maze.g"
     EGO_NAME = "ego"
     OBJ_NAME = "obj"
 
@@ -22,7 +22,6 @@ if __name__ == "__main__":
     Node.main_goal = G              # Set the main goal
     L = [Node(C0, G, EGO_NAME)]     # List of nodes
     
-    
     is_solved = False               # Solution found flag
 
     while len(L) > 0:
@@ -36,6 +35,8 @@ if __name__ == "__main__":
 
         if feasible:
             # TODO: Implement the path generation function              # Trace the solution back to x0
+            print("Solution found")
+            X.view(True)
             is_solved = True
             break
             
@@ -46,14 +47,14 @@ if __name__ == "__main__":
             Z = propose_subgoals(x, o, method="random", n=3)          # Propose subgoals
 
             for z in Z:
-                X, feasible = solve(x, z.g)                               # Solve the subgoal
-                xf = X[-1]
+                xf, feasible = solve(x, z.g)                               # Solve the subgoal
                 
                 if feasible and not rej(L, xf, O):                      # Check if subgoal is config is feasible and not rejected
-                    L.append(xf)
+                    L.append(Node(xf, [o, z.g]))
 
     if not is_solved:
         print("No solution found")
+
 
 
 

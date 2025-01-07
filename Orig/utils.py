@@ -33,7 +33,8 @@ def select_node(L:list):                                            # Returns th
     return min_node
         
 def solve(x:Node, g:list):                                          # Solve the task from the current configuration x to the end goal g
-    config = x.C
+    config = ry.Config()
+    config.addConfigurationCopy(x.C)
     agent  = x.agent
     obj    = g[0]
     goal   = [*g[1], 0.2]
@@ -44,21 +45,22 @@ def solve(x:Node, g:list):                                          # Solve the 
     komo.addObjective( [0,1], ry.FS.distance, [obj, agent], ry.OT.eq, scale=1e2)   # Pick constaints     
     komo.addModeSwitch([1,2], ry.SY.stable, [agent, obj], True)
                                                                                         
-    komo.addObjective( [2,3] , ry.FS.aboveBox, [obj, "subgoal"], ry.OT.ineq, scale=1e1)  # Place constraints         
+    komo.addObjective( [2,3] , ry.FS.aboveBox, [obj, "subgoal"], ry.OT.ineq, scale=1e3)  # Place constraints         
     komo.addModeSwitch([3,-1], ry.SY.stableOn, ["floor", agent])
 
     komo.addObjective([], ry.FS.accumulatedCollisions, [], ry.OT.eq, scale=1e2)                                    # Collision avoidance
 
     ret = ry.NLP_Solver(komo.nlp(), verbose=0).solve()              # Solve
 
-    print(ret.eq, ret.ineq, ret.sos, ret.f)
-    r = komo.report(True, True, True)
-                      
-    sg = config.getFrame("subgoal")
-    del sg
+    #print(ret.eq, ret.ineq, ret.sos, ret.f)
+    #r = komo.report(True, True, True)       
+    komo.view_play(True, str(ret.feasible), 1.0)
 
-    komo.view_play(True, str(ret.feasible), 1.0)                                
-    return komo.getPathFrames(), ret.feasible
+    pf = komo.getPathFrames()[-1]
+    config.setFrameState(pf)
+    #config.view(True, "Frame state")         
+
+    return config, ret.feasible
 
 def reachable(x:Node, o:str):                                       # Return True if the agent can reach the object
     config       = ry.Config()
@@ -112,9 +114,9 @@ def rej(L:list, xf:ry.Config, O:list):                                    # Reje
     def calc_pos(config:ry.Config, O:list):                         # Calculate discretized position of the movable objects and agent
         obj_pos = []
         for o in O:
-            pos = config.getFrame(o).getPosition()[0:1]
+            pos = config.getFrame(o).getPosition()[0:2]
             obj_pos.append([round(pos[0], 2), round(pos[1], 2)])
-        agent_pos = config.getJointState()[0:1]
+        agent_pos = config.getJointState()[0:2]
         agent_pos = [round(agent_pos[0], 2), round(agent_pos[1], 2)]
         return obj_pos, agent_pos
     
@@ -123,6 +125,7 @@ def rej(L:list, xf:ry.Config, O:list):                                    # Reje
     obj_pos, agent_pos  = calc_pos(config, O)
 
     for l in L:
+        print(l)
         config_temp = l.C
         obj_pos_temp, agent_pos_temp = calc_pos(config_temp, O)
 
