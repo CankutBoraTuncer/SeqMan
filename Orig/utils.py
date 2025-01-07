@@ -1,6 +1,7 @@
 import robotic as ry
 import numpy as np
 from Node import Node
+import time
 
 def score_function(x:Node):                                         # The subgoal scoring heuristic
     v0 = 1                                                          # Check line of sight between goal and object goal
@@ -28,41 +29,54 @@ def select_node(L:list):                                            # Returns th
     if min_node is None:
         return None
     
-    min_node.c += 1                                                 # Increment the number of times this node is tried
+    min_node.t += 1                                                 # Increment the number of times this node is tried
     return min_node
         
 def solve(x:Node, g:list):                                          # Solve the task from the current configuration x to the end goal g
     config = x.C
     agent  = x.agent
     obj    = g[0]
-    goal   = g[1]
+    goal   = [*g[1], 0.2]
+    config.addFrame("subgoal", "world", "shape:ssBox, size:[0.2 0.2 .1 .005], color:[1. .3 .3 0.9], contact:0, logical:{table}").setPosition(goal)                        # Add goal frame
 
-    
-    komo = ry.KOMO(config, phases=1, slicesPerPhase=1, kOrder=1, enableCollisions=True) # Initialize LGP
-                                                                    # Pick constaints
-    komo.addModeSwitch([], ry.SY.touch,  [agent, obj])              
-    komo.addModeSwitch([], ry.SY.stable, [agent, obj])
-                                                                    # Place constraints
-    komo.addModeSwitch([], ry.SY.above,  [agent, goal])             
-    komo.addModeSwitch([], ry.SY.stable, [agent, "floor"])
+    komo = ry.KOMO(config, phases=3, slicesPerPhase=1, kOrder=1, enableCollisions=True)                            # Initialize LGP
 
-   
-    komo.addObjective([], ry.FS.accumulatedCollisions, [], ry.OT.eq, scale=1e2)  # Collision avoidance
+    komo.addObjective( [0,1], ry.FS.distance, [obj, agent], ry.OT.eq, scale=1e2)   # Pick constaints     
+    komo.addModeSwitch([1,2], ry.SY.stable, [agent, obj], True)
+                                                                                        
+    komo.addObjective( [2,3] , ry.FS.aboveBox, [obj, "subgoal"], ry.OT.ineq, scale=1e1)  # Place constraints         
+    komo.addModeSwitch([3,-1], ry.SY.stableOn, ["floor", agent])
 
-    
+    komo.addObjective([], ry.FS.accumulatedCollisions, [], ry.OT.eq, scale=1e2)                                    # Collision avoidance
+
     ret = ry.NLP_Solver(komo.nlp(), verbose=0).solve()              # Solve
 
+    print(ret.eq, ret.ineq, ret.sos, ret.f)
+    r = komo.report(True, True, True)
+                      
+    sg = config.getFrame("subgoal")
+    del sg
+
+    komo.view_play(True, str(ret.feasible), 1.0)                                
     return komo.getPathFrames(), ret.feasible
 
 def reachable(x:Node, o:str):                                       # Return True if the agent can reach the object
-    config   = x.C
-    q_agent  = config.getJointState()
-    q_goal   = config.frame(o).getPosition()[0:1]
+    config       = ry.Config()
+    config.addConfigurationCopy(x.C)
 
+    q_agent  = config.getJointState()
+    q_goal   = config.frame(o).getPosition()[0:2]
+    obj = config.getFrame(o)
+    del obj
     
     rrt = ry.PathFinder()                                           # Solve Bi-Directional RRT
     rrt.setProblem(config, [q_agent], [q_goal], collisionTolerance=0.01)
     solution = rrt.solve()
+
+    #for js in solution.x:
+    #    config.setJointState(js)
+    #    config.view(False, "RRT")
+    #    time.sleep(0.03)
 
     return solution.feasible
 
@@ -71,33 +85,28 @@ def propose_subgoals(x:Node, o:str, method:str="random", n:int=100): # Propose s
     config       = ry.Config()
     config.addConfigurationCopy(x.C)
     agent        = x.agent
-    max_x, max_y = config.frame("floor").getSize()[0:1]
+    max_x, max_y = config.frame("floor").getSize()[0:2]
     Z = []
 
     if method == "random":
 
         while len(Z) < n * 10:                                      # Propose 10n subgoals
 
-            
             config.computeCollisions()                              # Check configuration before moving
             collisions_old = config.getCollisions()
 
-            
-            x = np.random.uniform(-max_x/2, max_x/2)                # Generate random point
-            y = np.random.uniform(-max_y/2, max_y/2)
-            config.frame(agent).setPosition([0, 0, 0.2])
+            px = np.random.uniform(-max_x/2, max_x/2)                # Generate random point
+            py = np.random.uniform(-max_y/2, max_y/2)
+            config.frame(agent).setPosition([px, py, 0.2])
 
-            
             config.computeCollisions()                              # Check if random point is feasible
             collisions_new = config.getCollisions()
             
             if len(collisions_new) <= len(collisions_old):
-                Z.append(Node(x.C, [o, [x, y]], agent))
+                Z.append(Node(x.C, [o, [px, py]], agent))
     
-
-    Z = sorted(Z, key=score_function, reverse=True)                 # Sort the list using scoring function
-
-    return Z[0:n]                                                   # Return the top n subgoals
+    Z = sorted(Z, key=score_function, reverse=True)[0:n]                 # Sort the list using scoring function
+    return Z                                                   # Return the top n subgoals
  
 def rej(L:list, xf:ry.Config, O:list):                                    # Reject the node if it is similar to the at most two nodes in L
     def calc_pos(config:ry.Config, O:list):                         # Calculate discretized position of the movable objects and agent

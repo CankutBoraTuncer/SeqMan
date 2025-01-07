@@ -1,7 +1,7 @@
 import robotic as ry
 import numpy as np
 
-from utils import (find_path_between_configurations, 
+from utils_old import (find_path_between_configurations, 
                    move_on_path, ik_for_agent_to_object, 
                    solve_ik_for_all_points, filter_solutions_for_agent_to_object, reachable, move_agent_away_from_object, object_faces_goal)
 
