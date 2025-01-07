@@ -40,21 +40,20 @@ def solve(x:Node, g:list):                                          # Solve the 
     goal   = [*g[1], 0.2]
     sg = config.addFrame("subgoal", "world", "shape:ssBox, size:[0.2 0.2 .1 .005], color:[1. .3 .3 0.9], contact:0, logical:{table}").setPosition(goal)                        # Add goal frame
 
-    komo = ry.KOMO(config, phases=2, slicesPerPhase=5, kOrder=1, enableCollisions=True)                            # Initialize LGP
+    S = ry.Skeleton()
+    S.enableAccumulatedCollisions(True)
 
-    komo.addObjective( [0,1], ry.FS.distance, [obj, agent], ry.OT.eq, scale=1e2)   # Pick constaints     
-    komo.addModeSwitch([1,-1], ry.SY.stable, [agent, obj], True)
-                                                                                        
-    komo.addObjective( [1,-1] , ry.FS.aboveBox, [obj, "subgoal"], ry.OT.ineq, scale=1e3)  # Place constraints         
-    komo.addModeSwitch([2,-1], ry.SY.stableOn, ["floor", agent])
+    S.addEntry([0, 0.1], ry.SY.touch, [agent, obj])
+    S.addEntry([0.1, 0.25], ry.SY.stable, [agent, obj]) 
+    S.addEntry([0.2, -1], ry.SY.above, [obj, "subgoal"])
+    S.addEntry([0.25, -1], ry.SY.stableOn, ["floor", obj])
 
-    komo.addObjective([], ry.FS.accumulatedCollisions, [], ry.OT.eq, scale=1e2)                                    # Collision avoidance
-
+    komo = S.getKomo_path(config, 30, 1e-3, 1e3, 1e-5, 1e3)
     ret = ry.NLP_Solver(komo.nlp(), verbose=0).solve()              # Solve
 
     #print(ret.eq, ret.ineq, ret.sos, ret.f)
-    #r = komo.report(True, True, True)       
-    komo.view_play(True, str(ret.feasible), 1.0)
+    r = komo.report(True, True, True)       
+    komo.view_play(True, str(ret.feasible), 0.3)
 
     pf = komo.getPathFrames()[-1]
     config.setFrameState(pf)
@@ -74,9 +73,8 @@ def sub_solve(x:Node, g:list):                                          # Solve 
     goal   = [*g[1], 0.2]
     config.addFrame("subgoal", "world", "shape:ssBox, size:[0.2 0.2 .1 .005], color:[1. .3 .3 0.9], contact:0, logical:{table}").setPosition(goal)                        # Add goal frame
 
-    komo1 = ry.KOMO(config, phases=1, slicesPerPhase=5, kOrder=1, enableCollisions=True)                            # Initialize LGP
-    komo1.addObjective([0,-1], ry.FS.distance, [obj, agent], ry.OT.eq, scale=1e2)                                     # Pick
-    komo1.addModeSwitch([1,-1], ry.SY.stable, [agent, obj], True)
+    komo1 = ry.KOMO(config, phases=1, slicesPerPhase=5, kOrder=0, enableCollisions=True)                            # Initialize LGP
+    komo1.addObjective([], ry.FS.distance, [obj, agent], ry.OT.eq, scale=1e2)                                     # Pick
     komo1.addObjective([], ry.FS.accumulatedCollisions, [], ry.OT.eq, scale=1e2) 
     ry.NLP_Solver(komo1.nlp(), verbose=0).solve()              # Solve
     config.setFrameState(komo1.getPathFrames()[-1])
@@ -84,12 +82,12 @@ def sub_solve(x:Node, g:list):                                          # Solve 
     config.attach(agent, obj)
     config.view(True, "Pick")
 
-    komo2 = ry.KOMO(config, phases=1, slicesPerPhase=5, kOrder=1, enableCollisions=True)                            # Initialize LGP
+    komo2 = ry.KOMO(config, phases=1, slicesPerPhase=5, kOrder=0, enableCollisions=True)                            # Initialize LGP
     komo2.addObjective( [0,-1] , ry.FS.aboveBox, [obj, "subgoal"], ry.OT.ineq, scale=1e3)  # Place constraints         
-    komo2.addModeSwitch([1,-1], ry.SY.stableOn, ["floor", agent])
     komo2.addObjective([], ry.FS.accumulatedCollisions, [], ry.OT.eq, scale=1e2) 
     ry.NLP_Solver(komo2.nlp(), verbose=0).solve() 
     config.setFrameState(komo2.getPathFrames()[-1])
+
     q_goal = komo2.getPath_qAll()[-1][0:2]
     config.view(True, "Place")
 
@@ -104,6 +102,9 @@ def sub_solve(x:Node, g:list):                                          # Solve 
             config.setJointState(js)
             config.view(False, "RRT")
             time.sleep(0.01)
+
+    config.setJointState(solution.x[-1])
+    config.frame(obj).unLink()
 
     return config, feasible
 

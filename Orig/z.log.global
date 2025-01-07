@@ -1,15 +1,14 @@
 ** compiled at:     Nov 26 2024 16:46:14
-** execution start: 2025-01-07 17:38:41:44557
+** execution start: 2025-01-07 18:27:44:145770
 graph.cpp:initParameters:1512(3) opening config file 'rai.cfg'
 graph.cpp:initParameters:1519(3)  - failed
 graph.cpp:initParameters:1525(3) opening base config file '/root/local/rai/../local.cfg'
 graph.cpp:initParameters:1531(3)  - failed
 util.cpp:cd_start:1034(3) entering path '/home/bora/Desktop/Bilkent_MS/SeqMan/Orig'
 util.cpp:cd_file:1042(3) entering path '../config' from '/home/bora/Desktop/Bilkent_MS/SeqMan/Orig'
-util.cpp:getIs:1071(3) opening input file 'p8-corner.g'
+util.cpp:getIs:1071(3) opening input file 'p9-cube-free.g'
 util.cpp:cd_start:1034(3) entering path '/home/bora/Desktop/Bilkent_MS/SeqMan/config'
 util.cpp:getIs:1071(3) opening input file 'base-walls-min.g'
 util.cpp:cd_start:1034(3) entering path '/home/bora/Desktop/Bilkent_MS/SeqMan/config'
 util.cpp:cd_start:1034(3) entering path '/home/bora/Desktop/Bilkent_MS/SeqMan/Orig'
-RRT_PathFinder.cpp:RRT_PathFinder:256(0) initializing with infeasible qT:
-kin.cpp:addFrame:195(-1) frame already exists! returning existing without modifications!
+util.cpp:getOs:1059(3) opening output file 'z.plotcmd'

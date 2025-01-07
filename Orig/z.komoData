@@ -1,4 +1,9 @@
-F_PairCollision[obj,ego] F_Pose/vel[obj] F_PoseRel/vel[obj,ego] F_AboveBox[obj,subgoal] F_Pose/vel[ego] F_AccumulatedCollisions[#13] 
- 4.67465e-05, 0.000238565, 0, 0, 0, 6.39306e-05,
- 0, 0, 5.55112e-16, 0, 0, 6.39306e-05,
- 0, 0, 0, 0, 4.19534e-07, 6.39306e-05 
+F_qItself/acc[ego,egoJoint] F_qItself[ego,egoJoint] F_qQuaternionNorms[#13] F_AccumulatedCollisions[#13] F_Pose/vel[obj] F_LinAngVel/acc[obj] F_PoseRel/vel[obj,ego] F_LinAngVel/acc[obj] F_PairCollision[ego,obj] F_AboveBox[obj,subgoal] 
+ 0.000395422, 1.83066e-10, 0, 6.93889e-17, 0, 0, 0, 0, 1.65296e-05, 0,
+ 0.000395357, 1.83099e-10, 0, 6.93889e-17, 0, 0, 0, 0, 0.000362443, 0,
+ 6.16738e-05, 3.05226e-10, 1.40289e-10, 9.81261e-05, 0.000693068, 0, 0, 0, 1.00822e-06, 0,
+ 6.24573e-05, 3.05226e-10, 1.40289e-10, 9.81261e-05, 0, 0.000500229, 0, 0, 0, 0,
+ 0.00065686, 4.52452e-15, 1.40289e-10, 9.81261e-05, 0, 0, 0, 0, 0, 0,
+ 5.59674e-05, 4.68788e-10, 1.40289e-10, 9.81261e-05, 0, 0, 0, 0, 0, 0,
+ 0.00101136, 4.71106e-10, 1.40289e-10, 0.00264855, 0, 0, 0, 0, 0, 0,
+ 1.72912e-06, 4.50217e-10, 0, 0, 0, 0, 0.000692685, 0, 0, 0 
