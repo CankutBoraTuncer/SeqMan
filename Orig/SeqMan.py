@@ -1,15 +1,14 @@
 import robotic as ry
-from utils import (select_node, solve, sub_solve, reachable, propose_subgoals, rej)
+from utils import (select_node, solve, sub_solve, reachable, propose_subgoals, rej, trace_back)
 from Node import Node
 
 if __name__ == "__main__":
-    task = "../config/p9-cube-free.g"
+    task = "../config/p8-corner.g"
     EGO_NAME = "ego"
     OBJ_NAME = "obj"
 
     C0 = ry.Config()
     C0.addFile(task)
-    print(C0.frame("ego").getPosition(), C0.frame("obj").getPosition())
     C0.view(True)
 
     ry.params_add({
@@ -20,7 +19,7 @@ if __name__ == "__main__":
     O = [OBJ_NAME]                  # Objects
     G = [OBJ_NAME, C0.frame("goal_visible").getPosition()[0:2]]  # Main Goal
     Node.main_goal = G              # Set the main goal
-    L = [Node(C0, G, EGO_NAME)]     # List of nodes
+    L = [Node(C0, G, path=[[]], agent_name=EGO_NAME)]     # List of nodes
     
     is_solved = False               # Solution found flag
 
@@ -34,9 +33,9 @@ if __name__ == "__main__":
         X, feasible = solve(x, G)                                       # Try to reach the goal
 
         if feasible:
-            # TODO: Implement the path generation function              # Trace the solution back to x0
+            X.C.view(True, "Solution found")
+            trace_back(X, C0)              # Trace the solution back to x0
             print("Solution found")
-            X.view(True)
             is_solved = True
             break
             
@@ -50,9 +49,9 @@ if __name__ == "__main__":
             for z in Z:
                 xf, feasible = sub_solve(x, z.g)                               # Solve the subgoal
                 
-                if feasible and not rej(L, xf, O):                      # Check if subgoal is config is feasible and not rejected
-                    L.append(Node(xf, [o, z.g]))
-        is_first = False
+                if feasible and not rej(L, xf.C, O):                      # Check if subgoal is config is feasible and not rejected
+                    L.append(xf)                                           # Add the subgoal to the list of nodes
+
     if not is_solved:
         print("No solution found")
 
