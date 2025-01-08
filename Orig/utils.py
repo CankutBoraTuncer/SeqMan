@@ -39,6 +39,9 @@ def solve(x:Node, g:list):                                          # Solve the 
     obj    = g[0]
     goal   = [*g[1], 0.2]
     sg = config.addFrame("subgoal", "world", "shape:ssBox, size:[0.2 0.2 .05 .005], color:[1. .3 .3 0.9], contact:0, logical:{table}").setPosition(goal)                        # Add goal frame
+    p = x.path[:]
+    is_feas = False
+    frame_st = None
 
     S = ry.Skeleton()
     S.enableAccumulatedCollisions(True)
@@ -48,26 +51,58 @@ def solve(x:Node, g:list):                                          # Solve the 
     S.addEntry([0.2, -1], ry.SY.above, [obj, "subgoal"])
     S.addEntry([0.25, -1], ry.SY.stableOn, ["floor", obj])
 
-    komo = S.getKomo_path(config, 100, 1e-3, 1e1, 1e-5, 1e3)
+    komo = S.getKomo_path(config, 100, 1e-3, 1e3, 1e-5, 1e3)
     ret = ry.NLP_Solver(komo.nlp(), verbose=0).solve()              # Solve
 
     #print(ret.eq, ret.ineq, ret.sos, ret.f)
     #r = komo.report(True, True, True)       
     #komo.view_play(True, str(ret.feasible), 0.3)
 
-    pf = komo.getPathFrames()[-1]
-    config.setFrameState(pf)
+    if ret.feasible:
+        #komo.view_play(True, str(ret.feasible), 0.3)
+        komo_path = komo.getPath()
+        q1 = komo_path[0]
+        q2 = komo_path[10]
+        q3 = komo_path[-2]
+
+        config1 = ry.Config()
+        config1.addConfigurationCopy(config)
+
+        rrt1 = ry.PathFinder()                                           # Solve Bi-Directional RRT
+        rrt1.setProblem(config1, [q1], [q2])
+        solution1 = rrt1.solve()
+        if solution1.feasible:
+
+            config2 = ry.Config()
+            config2.addConfigurationCopy(config1)
+            
+            config2.setJointState(solution1.x[-1])
+            config2.attach(agent, obj)
+            
+            rrt2 = ry.PathFinder()                                           # Solve Bi-Directional RRT
+            rrt2.setProblem(config2, [q2], [q3])
+            solution2 = rrt2.solve()
+
+
+
+            if solution2.feasible:
+                p.append(solution1.x)
+                p.append(solution2.x)
+                config2.setJointState(solution2.x[-1])
+                config2.frame(obj).unLink()
+                is_feas = True
+                frame_st = config2.getFrameState()
+
     del sg
 
+    if is_feas:
+        config.setFrameState(frame_st)
+        return Node(config, [obj, goal], path=p), is_feas
+    else:
+        return x, is_feas
 
-    #if ret.feasible:
-    #    config.view(True, "Feas Config")
-    p = x.path[:]
-    p.append(komo.getPathFrames())
 
     
-
-    return Node(config, [obj, goal], path=p), ret.feasible
 
 def sub_solve(x:Node, g:list):                                          # Solve the task from the current configuration x to the end goal g
     print("Running sub solve")
@@ -77,11 +112,13 @@ def sub_solve(x:Node, g:list):                                          # Solve 
     obj    = g[0]
     goal   = [*g[1], 0.2]
     p = x.path[:] 
+    is_feas = False
+
     config.addFrame("subgoal", "world", "shape:ssBox, size:[0.2 0.2 .05 .005], color:[1. .3 .3 0.9], contact:0, logical:{table}").setPosition(goal)                        # Add goal frame
 
-    komo_pick = ry.KOMO(config, phases=1, slicesPerPhase=5, kOrder=0, enableCollisions=True)                            # Initialize LGP
-    #komo_pick.initRandom()                                                                                              # Randomize the initial configuration
-    komo_pick.addObjective([], ry.FS.distance, [obj, agent], ry.OT.eq, scale=1e2, target=0)                                     # Pick
+    komo_pick = ry.KOMO(config, phases=1, slicesPerPhase=1, kOrder=0, enableCollisions=True)                            # Initialize LGP
+    komo_pick.initRandom(2)                                                                                              # Randomize the initial configuration
+    komo_pick.addObjective([], ry.FS.negDistance, [agent, obj], ry.OT.eq, scale=1e2, target=0)                                     # Pick
     komo_pick.addObjective([], ry.FS.accumulatedCollisions, [], ry.OT.eq, scale=1e3) 
     ret_pick = ry.NLP_Solver(komo_pick.nlp(), verbose=0).solve()              # Solve
 
@@ -89,12 +126,11 @@ def sub_solve(x:Node, g:list):                                          # Solve 
 
     print("Pick feas: ", ret_pick.feasible)
 
-
     rrt_pick = ry.PathFinder()                                           # Solve Bi-Directional RRT
     rrt_pick.setProblem(config, [config.getJointState()], [q_goal_pick])
     solution_pick = rrt_pick.solve()
 
-    if solution_pick.feasible:
+    if solution_pick.feasible and ret_pick.feasible:
         #for js in solution_pick.x:
         #    config.setJointState(js)
         #    config.view(False, "Pick")
@@ -119,7 +155,7 @@ def sub_solve(x:Node, g:list):                                          # Solve 
         #config.view(True, "Place")
 
         
-        if solution_place.feasible:
+        if solution_place.feasible and ret_place.feasible:
             #for js in solution_place.x:
             #    config.setJointState(js)
             #    config.view(False, "Place")
@@ -128,8 +164,9 @@ def sub_solve(x:Node, g:list):                                          # Solve 
             config.frame(obj).unLink()
             p.append(solution_pick.x)
             p.append(solution_place.x)
+            is_feas = True
 
-    return Node(config, [obj, goal],path=p), (solution_pick.feasible and solution_place.feasible)
+    return Node(config, [obj, goal],path=p), is_feas
 
 def reachable(x:Node, o:str):                                       # Return True if the agent can reach the object
     config       = ry.Config()
@@ -189,11 +226,10 @@ def reachable_together(x:Node):                                       # Return T
 def propose_subgoals(x:Node, o:str, method:str="random", n:int=100): # Propose subgoals for the agent
     config       = ry.Config()
     config.addConfigurationCopy(x.C)
-    agent        = x.agent
     max_x, max_y = config.frame("floor").getSize()[0:2]
     Z            = {}
-    obj          = config.getFrame(o)    
-    op           = obj.getPosition()
+
+
 
     if method == "random":
         
@@ -205,25 +241,29 @@ def propose_subgoals(x:Node, o:str, method:str="random", n:int=100): # Propose s
             config_temp       = ry.Config()
             config_temp.addConfigurationCopy(config)
 
-            config_temp.computeCollisions()
-            col_p = config_temp.getCollisions()
-
             px = np.random.uniform(-max_x/2, max_x/2)                # Generate random point
             py = np.random.uniform(-max_y/2, max_y/2)
             pn = [px, py, 0.2]
-        
-            obj.setPosition(pn) 
-                                                    # Set the object position to the random point
-            config_temp.computeCollisions()
-            col = config_temp.getCollisions()
 
-            if len(col) != len(col_p):                               # Reject the point if it is in collision
+            col_base = config_base.getCollisions()
+        
+            config_temp.frame(o).setPosition(pn)                      # Set the object position to the random point
+
+            col_temp = config_temp.getCollisions(1e5)
+                
+
+            if len(col_base) != len(col_temp):                               # Reject the point if it is in collision
                 continue
 
             Z[Node(config_base, [o, [px, py]])] = score_function(Node(config_temp, [o, []]))
 
     
     Z = sorted(Z, key=Z.get, reverse=True)[0:n]                # Sort the list using scoring function
+    
+    #for i, z in enumerate(Z):
+    #    config.addFrame(f"subgoal_p{i}", "world", "shape:ssBox, size:[0.2 0.2 .1 .005], color:[.3 1 .3 0.9], contact:0, logical:{table}").setPosition([*z.g[1], 0.1])                        # Add goal frame
+    #config.view(True, "Subgoals")
+
     #Z.append(Node(config, [o, op]))                             # Add the original position as a subgoal
     return Z                                                            # Return the top n subgoals
  
@@ -264,16 +304,16 @@ def trace_back(x:Node, C0:ry.Config):                                           
             else:
                 C0.frame(x.o).unLink()
 
-        if i != len(path) -1:
-            for pi in p:
-                C0.setJointState(pi)
-                C0.view(False, f"RRT {i}")
-                time.sleep(0.005) 
-        else: 
-            for pi in p:
-                C0.setFrameState(pi)
-                C0.view(False, f"RRT {i}")
-                time.sleep(0.05) 
+        #if i != len(path):
+        for pi in p:
+            C0.setJointState(pi)
+            C0.view(False, f"RRT {i}")
+            time.sleep(0.005) 
+        #else: 
+        #    for pi in p:
+        #        C0.setFrameState(pi)
+        #        C0.view(False, f"RRT {i}")
+        #        time.sleep(0.05) 
          
         
 

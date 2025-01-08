@@ -1,15 +1,15 @@
 Include: <base-walls-min.g>
 
 egoJoint(world){ Q:[0.0 0.0 0.1] } # works
-ego1(egoJoint) {
+ego(egoJoint) {
     shape:ssCylinder, size:[.2 .2 .02], color:[0.1 0.3 0.5], logical:{gripper}, limits: [-4 4 -4 4], sampleUniform:1,
     joint:transXY, contact: 1, Q:[0.0 0.0 0.01]
 }
 
-ego2(egoJoint) {
-    shape:ssCylinder, size:[.2 .2 .02], color:[0.5 0.1 0.3], logical:{gripper}, limits: [-4 4 -4 4], sampleUniform:1,
-    joint:transXY, contact: 1, Q:[-0.5 0.0 0.01]
-}
+#ego2(egoJoint) {
+#    shape:ssCylinder, size:[.2 .2 .02], color:[0.5 0.1 0.3], logical:{gripper}, limits: [-4 4 -4 4], sampleUniform:1,
+#    joint:transXY, contact: 1, Q:[-0.5 0.0 0.01]
+#}
 
 
 

@@ -3,7 +3,7 @@ from utils import (select_node, solve, sub_solve, reachable, propose_subgoals, r
 from Node import Node
 
 if __name__ == "__main__":
-    task = "../config/p8-corner.g"
+    task = "../config/p5-wall-easy.g"
     EGO_NAME = "ego"
     OBJ_NAME = "obj"
 
@@ -13,7 +13,8 @@ if __name__ == "__main__":
 
     ry.params_add({
         "rrt/stepsize": 0.01,
-        "rrt/verbose": -1
+        "rrt/verbose": -1,
+        
     })
 
     O = [OBJ_NAME]                  # Objects
@@ -44,7 +45,7 @@ if __name__ == "__main__":
             if not reachable(x, o):                                     # Check if agent can reach the object
                 continue
             
-            Z = propose_subgoals(x, o, method="random", n=3)          # Propose subgoals
+            Z = propose_subgoals(x, o, method="random", n=10)          # Propose subgoals
 
             for z in Z:
                 xf, feasible = sub_solve(x, z.g)                               # Solve the subgoal
