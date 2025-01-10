@@ -109,7 +109,7 @@ def solve(x:Node, g:list):                                          # Solve the 
     agent  = x.agent
     obj    = g[0]
     goal   = g[1]
-    sg = config.addFrame("subgoal", "world", "shape:ssBox, size:[0.2 0.2 .05 .005], color:[1. .3 .3 0.9], contact:0, logical:{table}").setPosition(goal)                        # Add goal frame
+    config.addFrame("subgoal", "world", "shape:ssBox, size:[0.2 0.2 .05 .005], color:[1. .3 .3 0.9], contact:0, logical:{table}").setPosition(goal)                        # Add goal frame
     p = x.path[:]
     is_feas = False
     frame_st = None
@@ -154,8 +154,6 @@ def solve(x:Node, g:list):                                          # Solve the 
             rrt2.setProblem(config2, [q2], [q3])
             solution2 = rrt2.solve()
 
-
-
             if solution2.feasible:
                 p.append(solution1.x)
                 p.append(solution2.x)
@@ -171,9 +169,6 @@ def solve(x:Node, g:list):                                          # Solve the 
         return Node(config, [obj, goal], path=p), is_feas
     else:
         return x, is_feas
-
-
-    
 
 def sub_solve(x:Node, g:list):                                          # Solve the task from the current configuration x to the end goal g
     print("Running sub solve")
@@ -331,12 +326,12 @@ def propose_subgoals(x:Node, o:str, method:str="random", n:int=100, max_iter:int
             iter += 1
     
     Z = sorted(Z, key=Z.get, reverse=True)[0:n]                # Sort the list using scoring function
-    
+    Z.append(Node(config, [o, [*config.frame(o).getPosition()[0:2], 0.2]])) # Add the original position as a subgoal
+
     #for i, z in enumerate(Z):
-    #    config.addFrame(f"subgoal_p{i}", "world", "shape:ssBox, size:[0.2 0.2 .1 .005], color:[.3 1 .3 0.9], contact:0, logical:{table}").setPosition([*z.g[1], 0.1])                        # Add goal frame
+    #    config.addFrame(f"subgoal_p{i}", "world", "shape:ssBox, size:[0.2 0.2 .1 .005], color:[.3 1 .3 0.9], contact:0, logical:{table}").setPosition(z.g[1])                        # Add goal frame
     #config.view(True, "Subgoals")
 
-    #Z.append(Node(config, [o, op]))                             # Add the original position as a subgoal
     return Z                                                            # Return the top n subgoals
  
 def rej(L:list, xf:ry.Config, O:list):                                    # Reject the node if it is similar to the at most two nodes in L
@@ -344,9 +339,9 @@ def rej(L:list, xf:ry.Config, O:list):                                    # Reje
         obj_pos = []
         for o in O:
             pos = config.getFrame(o).getPosition()[0:2]
-            obj_pos.append([round(pos[0], 2), round(pos[1], 2)])
+            obj_pos.append([round(pos[0], 1), round(pos[1], 1)])
         agent_pos = config.getJointState()[0:2]
-        agent_pos = [round(agent_pos[0], 2), round(agent_pos[1], 2)]
+        agent_pos = [round(agent_pos[0], 1), round(agent_pos[1], 1)]
         return obj_pos, agent_pos
     
     similar_count       = 0
@@ -360,8 +355,10 @@ def rej(L:list, xf:ry.Config, O:list):                                    # Reje
         if np.all(obj_pos == obj_pos_temp) and np.all(agent_pos == agent_pos_temp):
             similar_count += 1
             if similar_count == 2:
+                print("Reject ettim")
                 return True
-
+            
+    print("Reject etmedim")
     return False
 
 

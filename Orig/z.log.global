@@ -1,5 +1,5 @@
 ** compiled at:     Nov 26 2024 16:46:14
-** execution start: 2025-01-08 17:18:04:37683
+** execution start: 2025-01-10 15:58:14:921552
 graph.cpp:initParameters:1512(3) opening config file 'rai.cfg'
 graph.cpp:initParameters:1519(3)  - failed
 graph.cpp:initParameters:1525(3) opening base config file '/root/local/rai/../local.cfg'
@@ -22,8 +22,6 @@ RRT_PathFinder.cpp:RRT_PathFinder:255(0) initializing with infeasible q0:
 RRT_PathFinder.cpp:RRT_PathFinder:256(0) initializing with infeasible qT:
 frame.cpp:setRandom:953(0) init 'ego[7,0]' uniform in limits [-4, 4, -4, 4] relative to 'egoJoint' ([0, 0, 0.2])
 RRT_PathFinder.cpp:RRT_PathFinder:256(0) initializing with infeasible qT:
-frame.cpp:setRandom:953(0) init 'ego[7,0]' uniform in limits [-4, 4, -4, 4] relative to 'egoJoint' ([0, 0, 0.2])
-RRT_PathFinder.cpp:RRT_PathFinder:256(0) initializing with infeasible qT:
 RRT_PathFinder.cpp:RRT_PathFinder:255(0) initializing with infeasible q0:
 RRT_PathFinder.cpp:RRT_PathFinder:256(0) initializing with infeasible qT:
 frame.cpp:setRandom:953(0) init 'ego[7,0]' uniform in limits [-4, 4, -4, 4] relative to 'egoJoint' ([0, 0, 0.2])
@@ -38,11 +36,36 @@ frame.cpp:setRandom:953(0) init 'ego[7,0]' uniform in limits [-4, 4, -4, 4] rela
 RRT_PathFinder.cpp:RRT_PathFinder:256(0) initializing with infeasible qT:
 frame.cpp:setRandom:953(0) init 'ego[7,0]' uniform in limits [-4, 4, -4, 4] relative to 'egoJoint' ([0, 0, 0.2])
 RRT_PathFinder.cpp:RRT_PathFinder:256(0) initializing with infeasible qT:
+frame.cpp:setRandom:953(0) init 'ego[7,0]' uniform in limits [-4, 4, -4, 4] relative to 'egoJoint' ([0, 0, 0.2])
+RRT_PathFinder.cpp:RRT_PathFinder:256(0) initializing with infeasible qT:
+frame.cpp:setRandom:953(0) init 'ego[7,0]' uniform in limits [-4, 4, -4, 4] relative to 'egoJoint' ([0, 0, 0.2])
+RRT_PathFinder.cpp:RRT_PathFinder:256(0) initializing with infeasible qT:
+frame.cpp:setRandom:953(0) init 'ego[7,0]' uniform in limits [-4, 4, -4, 4] relative to 'egoJoint' ([0, 0, 0.2])
+RRT_PathFinder.cpp:RRT_PathFinder:256(0) initializing with infeasible qT:
+frame.cpp:setRandom:953(0) init 'ego[7,0]' uniform in limits [-4, 4, -4, 4] relative to 'egoJoint' ([0, 0, 0.2])
+RRT_PathFinder.cpp:RRT_PathFinder:256(0) initializing with infeasible qT:
+frame.cpp:setRandom:953(0) init 'ego[7,0]' uniform in limits [-4, 4, -4, 4] relative to 'egoJoint' ([0, 0, 0.2])
+RRT_PathFinder.cpp:RRT_PathFinder:256(0) initializing with infeasible qT:
+frame.cpp:setRandom:953(0) init 'ego[7,0]' uniform in limits [-4, 4, -4, 4] relative to 'egoJoint' ([0, 0, 0.2])
+RRT_PathFinder.cpp:RRT_PathFinder:256(0) initializing with infeasible qT:
 RRT_PathFinder.cpp:RRT_PathFinder:255(0) initializing with infeasible q0:
 RRT_PathFinder.cpp:RRT_PathFinder:256(0) initializing with infeasible qT:
-kin.cpp:addFrame:195(-1) frame already exists! returning existing without modifications!
-** execution stop: 2025-01-08 17:18:34:824337
-** real time: 30.7867sec
-** CPU time: 22.2514
+frame.cpp:setRandom:953(0) init 'ego[7,0]' uniform in limits [-4, 4, -4, 4] relative to 'egoJoint' ([0, 0, 0.2])
+RRT_PathFinder.cpp:RRT_PathFinder:256(0) initializing with infeasible qT:
+frame.cpp:setRandom:953(0) init 'ego[7,0]' uniform in limits [-4, 4, -4, 4] relative to 'egoJoint' ([0, 0, 0.2])
+RRT_PathFinder.cpp:RRT_PathFinder:256(0) initializing with infeasible qT:
+frame.cpp:setRandom:953(0) init 'ego[7,0]' uniform in limits [-4, 4, -4, 4] relative to 'egoJoint' ([0, 0, 0.2])
+RRT_PathFinder.cpp:RRT_PathFinder:256(0) initializing with infeasible qT:
+frame.cpp:setRandom:953(0) init 'ego[7,0]' uniform in limits [-4, 4, -4, 4] relative to 'egoJoint' ([0, 0, 0.2])
+RRT_PathFinder.cpp:RRT_PathFinder:256(0) initializing with infeasible qT:
+frame.cpp:setRandom:953(0) init 'ego[7,0]' uniform in limits [-4, 4, -4, 4] relative to 'egoJoint' ([0, 0, 0.2])
+RRT_PathFinder.cpp:RRT_PathFinder:256(0) initializing with infeasible qT:
+frame.cpp:setRandom:953(0) init 'ego[7,0]' uniform in limits [-4, 4, -4, 4] relative to 'egoJoint' ([0, 0, 0.2])
+RRT_PathFinder.cpp:RRT_PathFinder:256(0) initializing with infeasible qT:
+RRT_PathFinder.cpp:RRT_PathFinder:255(0) initializing with infeasible q0:
+RRT_PathFinder.cpp:RRT_PathFinder:256(0) initializing with infeasible qT:
+** execution stop: 2025-01-10 15:59:04:738109
+** real time: 49.8166sec
+** CPU time: 34.1383
 
 ** set+queried params:
