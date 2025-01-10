@@ -18,7 +18,7 @@ if __name__ == "__main__":
     })
 
     O = [OBJ_NAME]                  # Objects
-    G = [OBJ_NAME, C0.frame("goal_visible").getPosition()[0:2]]  # Main Goal
+    G = [OBJ_NAME, [*C0.frame("goal_visible").getPosition()[0:2], 0.2]]  # Main Goal
     Node.main_goal = G              # Set the main goal
     L = [Node(C0, G, path=[[]], agent_name=EGO_NAME)]     # List of nodes
     

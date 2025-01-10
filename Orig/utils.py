@@ -3,10 +3,81 @@ import numpy as np
 from Node import Node
 import time
 
-def score_function(x:Node):                                         # The subgoal scoring heuristic
-    v0 = 1                                                          # Check line of sight between goal and object goal
-    vg = 1                                                          # Check line of sight between object goal and agent
-    vdist = 1                                                       # proximity d of object goal to the goal, and is set to 5 if d < 0.2, 2 if d < 0.4, and 0 otherwise.
+def is_line_of_sight(C, obj, goal):
+    # Get the object and goal positions and sizes
+    obj_pos = C.getFrame(obj).getPosition()
+    obj_size = C.getFrame(obj).getSize()[:2]
+    goal_pos = C.getFrame(goal).getPosition()
+    goal_size = C.getFrame(goal).getSize()[:2]
+
+    start = obj_pos[:2]
+    end = goal_pos[:2]
+    
+    # Calculate the midpoint of the line
+    midpoint = (start + end) / 2
+
+    # Calculate the orientation (angle) of the line and the length of line
+    delta = end - start
+    size = np.linalg.norm(abs(delta) - obj_size/2 - goal_size/2 - [0.05, 0.05]) # the last element is error margin
+    angle = np.arctan2(delta[1], delta[0])  # Angle in radians
+
+    # Create a temporary configuration to add the intermediate object
+    config = ry.Config()
+    config.addConfigurationCopy(C)
+    collisions = config.getCollisionsTotalPenetration()
+
+    # Add a new object at the midpoint with the calculated orientation
+    intermediate_obj = "intermediate_object"
+    config.addFrame(intermediate_obj)\
+        .setShape(ry.ST.ssBox,[size, 0.1,  .05, .005]).setPosition(np.array([midpoint[0], midpoint[1], obj_pos[2]])) \
+        .setContact(1)\
+        .setQuaternion([np.cos(angle / 2), 0, 0, np.sin(angle / 2)])  # Rotation around Z-axis
+    #config.view(True)
+
+    # Check for collisions
+    config1 = ry.Config()
+    config1.addConfigurationCopy(config)
+    collisions1 = config1.getCollisionsTotalPenetration()
+    
+    del config
+    del config1
+
+    if abs(collisions1 - collisions) > 0.05:  
+        return 0
+
+    # If no collisions are detected, there is a line of sight
+    return 1
+
+
+def score_function(x:Node):
+    
+    goal   = x.g[1] 
+
+    # Create a temporary configuration to add the intermediate object
+    config = ry.Config()
+    config.addConfigurationCopy(x.C)
+
+    sg = config.addFrame("subgoal_mark", "world", "shape:ssBox, size:[0.2 0.2 .1 .005], color:[1. .3 .3 0.9], contact:0, logical:{table}").setPosition(goal) 
+
+    # The subgoal scoring heuristic
+    v0 = is_line_of_sight(config, "goal", "subgoal_mark")   # Check line of sight between goal and object goal
+    vg = is_line_of_sight(config, "subgoal_mark", x.agent)  # Check line of sight between object goal and agent
+    
+    config.delFrame("subgoal_mark")
+
+    final_goal_pos = config.getFrame("goal").getPosition()
+
+    # proximity d of object goal to the goal, and is set to 5 if d < 0.2, 2 if d < 0.4, and 0 otherwise.
+    d = np.linalg.norm(goal[:2] - final_goal_pos[:2])
+
+    vdist = 0
+
+    if d < 2:
+        vdist = 5
+    elif d < 4:
+        vdist = 2
+        
+    #print(10*v0 + 5*vg + vdist)                                                         
     return 10*v0 + 5*vg + vdist
 
 def select_node(L:list):                                            # Returns the node with the lowest cost
@@ -37,7 +108,7 @@ def solve(x:Node, g:list):                                          # Solve the 
     config.addConfigurationCopy(x.C)
     agent  = x.agent
     obj    = g[0]
-    goal   = [*g[1], 0.2]
+    goal   = g[1]
     sg = config.addFrame("subgoal", "world", "shape:ssBox, size:[0.2 0.2 .05 .005], color:[1. .3 .3 0.9], contact:0, logical:{table}").setPosition(goal)                        # Add goal frame
     p = x.path[:]
     is_feas = False
@@ -93,7 +164,7 @@ def solve(x:Node, g:list):                                          # Solve the 
                 is_feas = True
                 frame_st = config2.getFrameState()
 
-    del sg
+    config.delFrame("subgoal")
 
     if is_feas:
         config.setFrameState(frame_st)
@@ -110,7 +181,7 @@ def sub_solve(x:Node, g:list):                                          # Solve 
     config.addConfigurationCopy(x.C)
     agent  = x.agent
     obj    = g[0]
-    goal   = [*g[1], 0.2]
+    goal   = g[1]
     p = x.path[:] 
     is_feas = False
 
@@ -165,7 +236,7 @@ def sub_solve(x:Node, g:list):                                          # Solve 
             p.append(solution_pick.x)
             p.append(solution_place.x)
             is_feas = True
-
+    config.delFrame("subgoal")
     return Node(config, [obj, goal],path=p), is_feas
 
 def reachable(x:Node, o:str):                                       # Return True if the agent can reach the object
@@ -192,7 +263,7 @@ def reachable_together(x:Node):                                       # Return T
     config       = ry.Config()
     config.addConfigurationCopy(x.C)
     o = x.o
-    pn = x.og[0:2]
+    pn = x.og[:2]
     obj = config.getFrame(o)
     ag  = config.getFrame(x.agent)
     q_agent  = config.getJointState()
@@ -223,18 +294,17 @@ def reachable_together(x:Node):                                       # Return T
 
     return feasible
 
-def propose_subgoals(x:Node, o:str, method:str="random", n:int=100): # Propose subgoals for the agent
+def propose_subgoals(x:Node, o:str, method:str="random", n:int=100, max_iter:int=10000): # Propose subgoals for the agent
     config       = ry.Config()
     config.addConfigurationCopy(x.C)
     max_x, max_y = config.frame("floor").getSize()[0:2]
     Z            = {}
 
 
-
     if method == "random":
+        iter = 0 
         
-        # TODO: Add max iter
-        while len(Z) < n * 10:                                      # Propose 10n subgoals
+        while len(Z) < n * 10 and iter < max_iter:                                      # Propose 10n subgoals
             config_base       = ry.Config()
             config_base.addConfigurationCopy(config)
 
@@ -254,9 +324,11 @@ def propose_subgoals(x:Node, o:str, method:str="random", n:int=100): # Propose s
 
             if len(col_base) != len(col_temp):                               # Reject the point if it is in collision
                 continue
+        
+            node = Node(config_base, [o, pn])
 
-            Z[Node(config_base, [o, [px, py]])] = score_function(Node(config_temp, [o, []]))
-
+            Z[node] = score_function(node)
+            iter += 1
     
     Z = sorted(Z, key=Z.get, reverse=True)[0:n]                # Sort the list using scoring function
     
@@ -295,7 +367,7 @@ def rej(L:list, xf:ry.Config, O:list):                                    # Reje
 
 def trace_back(x:Node, C0:ry.Config):                                             # Trace back the solution to the root node
     path = x.path
-    print(len(path))
+    # print(len(path))
     for i, p in enumerate(path):
 
         if i != 0:
