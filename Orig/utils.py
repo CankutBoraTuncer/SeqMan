@@ -50,12 +50,14 @@ def is_line_of_sight(C, obj, goal, view):
     # Create a temporary configuration to add the intermediate object
     config = ry.Config()
     config.addConfigurationCopy(C)
+    config.getFrame(obj).setContact(0)
+    config.getFrame(goal).setContact(0)
     collisions = config.getCollisionsTotalPenetration()
 
     # Add a new object at the midpoint with the calculated orientation
     intermediate_obj = "intermediate_object"
     config.addFrame(intermediate_obj)\
-        .setShape(ry.ST.ssBox,[size, 0.1,  .05, .005]).setPosition(np.array([midpoint[0], midpoint[1], 0.1])) \
+        .setShape(ry.ST.ssBox,[size, 0.1,  .05, .005]).setPosition(np.array([midpoint[0], midpoint[1], 0.12])) \
         .setContact(1)\
         .setQuaternion([np.cos(angle / 2), 0, 0, np.sin(angle / 2)])  # Rotation around Z-axis
     #config.view(True)
@@ -64,14 +66,14 @@ def is_line_of_sight(C, obj, goal, view):
     config1 = ry.Config()
     config1.addConfigurationCopy(config)
     collisions1 = config1.getCollisionsTotalPenetration()
-    
+
     if view:
         config1.view(True, f"With inter{collisions1}")
 
     del config
     del config1
 
-    if abs(collisions1 - collisions) > 0.03:  
+    if abs(collisions1 - collisions) > 0.01:  
         return 0
 
     # If no collisions are detected, there is a line of sight
@@ -86,11 +88,13 @@ def score_function(x:Node):
     config = ry.Config()
     config.addConfigurationCopy(x.C)
 
-    config.addFrame("subgoal_mark", "world", "shape:ssBox, size:[0.2 0.2 .1 .005], color:[1. .3 .3 0.9], contact:0, logical:{table}").setPosition(goal) 
-
     # The subgoal scoring heuristic
-    v0 = is_line_of_sight(config, "goal", "subgoal_mark", False)   # Check line of sight between goal and object goal
-    vg = is_line_of_sight(config, "subgoal_mark", x.agent, False)  # Check line of sight between object goal and agent
+    vg = is_line_of_sight(config, x.g[0], x.agent, False)  # Check line of sight between object goal and agent
+
+    # the agent is not counted as an obstacle
+    config.delFrame(x.agent)
+    v0 = is_line_of_sight(config, "goal", x.g[0], False)   # Check line of sight between goal and object goal
+    
     
     final_goal_pos = config.getFrame("goal").getPosition()
 
@@ -475,11 +479,3 @@ def trace_back(x:Node, C0:ry.Config):                                           
             C0.view(False, f"RRT {i}")
             time.sleep(0.005) 
          
-        
-
-
-
-
-
-        
-    
