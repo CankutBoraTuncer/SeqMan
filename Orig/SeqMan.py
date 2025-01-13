@@ -1,5 +1,5 @@
 import robotic as ry
-from utils import (select_node, solve, reachable, propose_subgoals, rej, trace_back)
+from utils import (select_node, solve, sub_solve, reachable, propose_subgoals, rej, trace_back)
 from Node import Node
 
 if __name__ == "__main__":
@@ -36,7 +36,7 @@ if __name__ == "__main__":
             break
 
         print("Testing end goal")
-        X, feasible = solve(x)                                       # Try to reach the goal
+        X, feasible = solve(x, True)                                       # Try to reach the goal
 
         if feasible:
             X.C.view(True, "Solution found")
@@ -50,11 +50,11 @@ if __name__ == "__main__":
                 continue
             
             print("Generating subgoals")
-            Z = propose_subgoals(x, o, method="random", n=40)          # Propose subgoals
+            Z = propose_subgoals(x, o, method="random", n=3)          # Propose subgoals
 
             for i, z in enumerate(Z):
                 print(f"Subgoal {i+1}/{len(Z)} | try count {try_count} | Node: {z}", end="")  
-                xf, feasible = solve(z) 
+                xf, feasible = sub_solve(z, True) 
                 print(f" | Feasible: {feasible}")  
                  
                 

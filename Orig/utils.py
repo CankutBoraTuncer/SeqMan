@@ -152,20 +152,21 @@ def solve(x:Node, view:bool=False):                                          # S
     S = ry.Skeleton()
     S.enableAccumulatedCollisions(True)
 
-    S.addEntry([0, 0.1], ry.SY.touch, [agent, obj])
-    S.addEntry([0.1, 0.25], ry.SY.stable, [agent, obj]) 
-    S.addEntry([0.2, -1], ry.SY.above, [obj, "subgoal"])
-    S.addEntry([0.25, -1], ry.SY.stableOn, ["floor", obj])
+    S.addEntry([0, -1], ry.SY.touch, [agent, obj])
+    S.addEntry([0.5, -1], ry.SY.stable, [agent, obj])
+    S.addEntry([0.8, -1], ry.SY.positionEq, [obj, "subgoal"]) 
+    S.addEntry([0.8, -1], ry.SY.above, [obj, "subgoal"])
 
-    komo = S.getKomo_path(config, 500, 1e-3, 1e3, 1e-5, 1e3)
+    komo = S.getKomo_path(config, 30, 1e-1, 1e1, 1e-1, 1e2)
     ret = ry.NLP_Solver(komo.nlp(), verbose=0).solve()              # Solve
 
     #print(ret.eq, ret.ineq, ret.sos, ret.f)
-    #r = komo.report(True, True, True)   
-    if ret.feasible and view:    
+    #r = 
+    if view:   
         komo.view_play(True, str(ret.feasible), 0.3)
 
     if ret.feasible:
+        
         #komo.view_play(True, str(ret.feasible), 0.3
         config.delFrame("subgoal")
         komo_path = komo.getPathFrames()
@@ -173,6 +174,82 @@ def solve(x:Node, view:bool=False):                                          # S
         config.setFrameState(komo_path[-1])
 
     return Node(config, Node.main_goal, path=p, layer_no=ln), ret.feasible
+
+def sub_solve(x:Node, view:bool=False):                                          # Solve the task from the current configuration x to the end goal g
+    config = ry.Config()
+    config.addConfigurationCopy(x.C)
+    agent  = x.agent
+    obj    = x.o
+    goal   = x.og
+    config.addFrame("subgoal", "world", "shape:ssBox, size:[0.2 0.2 .05 .005], color:[1. .3 .3 0.9], contact:0, logical:{table}").setPosition([*goal[0:2], 0.0])                        # Add goal frame
+    p = x.path[:]
+    ln = x.layer_no
+    komo_path = []
+
+    komo = ry.KOMO(config, phases=2, slicesPerPhase=1, kOrder=1, enableCollisions=True)                            # Initialize LGP
+    komo.initRandom()       
+    komo.addObjective([], ry.FS.accumulatedCollisions, [], ry.OT.eq, scale=1e3)                                                                                        # Randomize the initial configuration
+    komo.addObjective([0,1], ry.FS.distance, [agent, obj], ry.OT.eq, scale=1e2, target=0)                                     # Pick
+    komo.addModeSwitch([1,2], ry.SY.stable, [agent, obj], True)   
+    komo.addObjective([1,2] , ry.FS.aboveBox, [obj, "subgoal"], ry.OT.ineq, scale=1e1)  # Place constraints 
+
+    ret = ry.NLP_Solver(komo.nlp(), verbose=0).solve()              # Solve
+
+    #print(ret.eq, ret.ineq, ret.sos, ret.f)
+    #r = komo.report(True, True, True)   
+    if view :#and ret.feasible:    
+        komo.view_play(True, str(ret.feasible), 0.3)
+        komo.view_close()
+
+    path = komo.getPath()
+
+    q0 = config.getJointState()
+    qT = path[0]
+
+    
+    config1 = ry.Config()
+    config1.addConfigurationCopy(x.C)
+    rrt1 = ry.PathFinder()                                           # Solve Bi-Directional RRT
+    rrt1.setProblem(config1, [q0], [qT], -1)
+    solution1 = rrt1.solve()
+
+    if solution1.feasible:
+        if view:
+            config1.view(True, "Pick RRT")
+        for js1 in solution1.x:
+            config1.setJointState(js1)
+            if view:
+                config1.view(False)
+                time.sleep(0.005)
+            komo_path.append(config1.getFrameState())
+        config1.view_close()
+        config1.attach(agent, obj)
+
+        q0 = path[0]
+        qT = path[1]
+        with suppress_stdout():
+            config2 = ry.Config()
+            config2.addConfigurationCopy(config1)
+            rrt2 = ry.PathFinder()                                           # Solve Bi-Directional RRT
+            rrt2.setProblem(config2, [q0], [qT])
+            solution2 = rrt2.solve()
+
+            if solution2.feasible:
+                if view:
+                    config2.view(True, "Place RRT")
+                for js2 in solution2.x:
+                    config2.setJointState(js2)
+                    if view:
+                        config2.view(False)
+                        time.sleep(0.005)
+                    komo_path.append(config2.getFrameState())
+                config2.view_close()
+                config2.frame(obj).unLink()
+                config2.delFrame("subgoal")
+                p.append(komo_path)
+
+                return Node(config2, Node.main_goal, path=p, layer_no=ln), True
+    return None, False
 
 def reachable(x:Node, o:str):                                       # Return True if the agent can reach the object
     config       = ry.Config()
