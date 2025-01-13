@@ -3,7 +3,7 @@ from utils import (select_node, solve, reachable, propose_subgoals, rej, trace_b
 from Node import Node
 
 if __name__ == "__main__":
-    task = "../config/p6-wall.g"
+    task = "../config/p5-wall-easy.g"
     EGO_NAME = "ego"
     OBJ_NAME = "obj"
 
