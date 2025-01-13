@@ -3,7 +3,7 @@ from utils import (select_node, solve, sub_solve, reachable, propose_subgoals, r
 from Node import Node
 
 if __name__ == "__main__":
-    task = "../config/p5-wall-easy.g"
+    task = "../config/p8-corner.g"
     EGO_NAME = "ego"
     OBJ_NAME = "obj"
 
@@ -14,7 +14,6 @@ if __name__ == "__main__":
     ry.params_add({
         "rrt/stepsize": 0.01,
         "rrt/verbose": -1,
-        
     })
 
     O = [OBJ_NAME]                  # Objects

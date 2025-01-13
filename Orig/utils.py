@@ -2,7 +2,33 @@ import robotic as ry
 import numpy as np
 from Node import Node
 import time
+import os
+import sys
+from contextlib import contextmanager
 
+@contextmanager
+def suppress_stdout():
+    """Suppress output from C++ std::cout and std::cerr."""
+    # Open /dev/null
+    devnull = os.open(os.devnull, os.O_WRONLY)
+    # Save the original stdout and stderr file descriptors
+    original_stdout = os.dup(1)
+    original_stderr = os.dup(2)
+    
+    try:
+        # Redirect stdout and stderr to /dev/null
+        os.dup2(devnull, 1)
+        os.dup2(devnull, 2)
+        yield
+    finally:
+        # Restore stdout and stderr to their original file descriptors
+        os.dup2(original_stdout, 1)
+        os.dup2(original_stderr, 2)
+        # Close the duplicate file descriptors
+        os.close(devnull)
+        os.close(original_stdout)
+        os.close(original_stderr)
+        
 def is_line_of_sight(C, obj, goal, view):
     # Get the object and goal positions and sizes
     obj_pos = C.getFrame(obj).getPosition()
@@ -60,7 +86,7 @@ def score_function(x:Node):
     config = ry.Config()
     config.addConfigurationCopy(x.C)
 
-    sg = config.addFrame("subgoal_mark", "world", "shape:ssBox, size:[0.2 0.2 .1 .005], color:[1. .3 .3 0.9], contact:0, logical:{table}").setPosition(goal) 
+    config.addFrame("subgoal_mark", "world", "shape:ssBox, size:[0.2 0.2 .1 .005], color:[1. .3 .3 0.9], contact:0, logical:{table}").setPosition(goal) 
 
     # The subgoal scoring heuristic
     v0 = is_line_of_sight(config, "goal", "subgoal_mark", False)   # Check line of sight between goal and object goal
@@ -140,9 +166,11 @@ def solve(x:Node, g:list):                                          # Solve the 
         config1 = ry.Config()
         config1.addConfigurationCopy(config)
 
-        rrt1 = ry.PathFinder()                                           # Solve Bi-Directional RRT
-        rrt1.setProblem(config1, [q1], [q2])
-        solution1 = rrt1.solve()
+        with suppress_stdout():
+            rrt1 = ry.PathFinder()                                           # Solve Bi-Directional RRT
+            rrt1.setProblem(config1, [q1], [q2])
+            solution1 = rrt1.solve()
+
         if solution1.feasible:
 
             config2 = ry.Config()
@@ -151,9 +179,10 @@ def solve(x:Node, g:list):                                          # Solve the 
             config2.setJointState(solution1.x[-1])
             config2.attach(agent, obj)
             
-            rrt2 = ry.PathFinder()                                           # Solve Bi-Directional RRT
-            rrt2.setProblem(config2, [q2], [q3])
-            solution2 = rrt2.solve()
+            with suppress_stdout():
+                rrt2 = ry.PathFinder()                                           # Solve Bi-Directional RRT
+                rrt2.setProblem(config2, [q2], [q3])
+                solution2 = rrt2.solve()
 
             if solution2.feasible:
                 p.append(solution1.x)
@@ -241,9 +270,10 @@ def sub_solve(x:Node, g:list):                                          # Solve 
 
         print("Pick feas: ", ret.feasible)
         if ret.feasible:
-            rrt_pick = ry.PathFinder()                                           # Solve Bi-Directional RRT
-            rrt_pick.setProblem(config, [config.getJointState()], [q_goal_pick])
-            solution_pick = rrt_pick.solve()
+            with suppress_stdout():
+                rrt_pick = ry.PathFinder()                                           # Solve Bi-Directional RRT
+                rrt_pick.setProblem(config, [config.getJointState()], [q_goal_pick])
+                solution_pick = rrt_pick.solve()
 
             if solution_pick.feasible:
                 #for js in solution_pick.x:
@@ -254,10 +284,10 @@ def sub_solve(x:Node, g:list):                                          # Solve 
                 config.setJointState(solution_pick.x[-1])
                 config.attach(agent, obj)
                 
-                rrt_place = ry.PathFinder()                                           # Solve Bi-Directional RRT
-                rrt_place.setProblem(config, [config.getJointState()], [q_goal_place])
-                solution_place = rrt_place.solve()
-
+                with suppress_stdout():
+                    rrt_place = ry.PathFinder()                                           # Solve Bi-Directional RRT
+                    rrt_place.setProblem(config, [config.getJointState()], [q_goal_place])
+                    solution_place = rrt_place.solve()
                 #config.view(True, "Place")
 
                 
@@ -285,10 +315,10 @@ def reachable(x:Node, o:str):                                       # Return Tru
     obj = config.getFrame(o)
     del obj
     
-    rrt = ry.PathFinder()                                           # Solve Bi-Directional RRT
-    rrt.setProblem(config, [q_agent], [q_goal], collisionTolerance=0.01)
-    solution = rrt.solve()
-
+    with suppress_stdout():
+        rrt = ry.PathFinder()                                           # Solve Bi-Directional RRT
+        rrt.setProblem(config, [q_agent], [q_goal], collisionTolerance=0.01)
+        solution = rrt.solve()
     #for js in solution.x:
     #    config.setJointState(js)
     #    config.view(False, "RRT")
@@ -432,7 +462,6 @@ def rej(L: list, xf: ry.Config, O: list, threshold: float = 0.3):
 
 def trace_back(x:Node, C0:ry.Config):                                             # Trace back the solution to the root node
     path = x.path
-    # print(len(path))
     for i, p in enumerate(path):
 
         if i != 0:
@@ -441,13 +470,16 @@ def trace_back(x:Node, C0:ry.Config):                                           
             else:
                 C0.frame(x.o).unLink()
 
-        #if i != len(path):
         for pi in p:
             C0.setJointState(pi)
             C0.view(False, f"RRT {i}")
             time.sleep(0.005) 
-        #else: 
-        #    for pi in p:
-        #        C0.setFrameState(pi)
-        #        C0.view(False, f"RRT {i}")
-        #        time.sleep(0.05) 
+         
+        
+
+
+
+
+
+        
+    
