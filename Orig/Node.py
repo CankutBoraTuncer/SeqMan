@@ -4,7 +4,7 @@ import numpy as np
 class Node:
     main_goal = ""
 
-    def __init__(self, C:ry.Config, g:list, path:list=[], agent_name:str="ego"):
+    def __init__(self, C:ry.Config, g:list, path:list=[], layer_no:int=0, agent_name:str="ego"):
         self.C     = C                         # Configuration
         self.g     = g                         # Goal
         self.o     = g[0]                      # Object
@@ -12,9 +12,10 @@ class Node:
         self.t     = 0                         # How many times this node is tried
         self.agent = agent_name                # Agent name
         self.path  = path
+        self.layer_no = layer_no
         
     def __repr__(self):
-        return f"Node({self.o}, {self.og}, {self.t}, {self.agent}, {self.path})"
+        return f"Object:{self.o} | Times:{self.t} | Agent:{self.agent} | Layer No:{self.layer_no} | Goal:{self.og}"
 
     def __str__(self):
-        return f"Node({self.o}, {self.og}, {self.t}, {self.agent}, {self.path})"
+        return f"Object:{self.o} | Times:{self.t} | Agent:{self.agent} | Layer No:{self.layer_no} | Goal:{self.og}"
