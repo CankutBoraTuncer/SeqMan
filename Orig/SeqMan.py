@@ -18,7 +18,7 @@ if __name__ == "__main__":
     })
 
     O = [OBJ_NAME]                  # Objects
-    G = [OBJ_NAME, [*C0.frame("goal_visible").getPosition()[0:2], 0.2]]  # Main Goal
+    G = [OBJ_NAME, [*C0.frame("goal_visible").getPosition()[0:2], 0.1]]  # Main Goal
     Node.main_goal = G              # Set the main goal
     L = [Node(C0, G, path=[[]], agent_name=EGO_NAME)]     # List of nodes
     
@@ -45,7 +45,7 @@ if __name__ == "__main__":
             if not reachable(x, o):                                     # Check if agent can reach the object
                 continue
             
-            Z = propose_subgoals(x, o, method="random", n=20)          # Propose subgoals
+            Z = propose_subgoals(x, o, method="random", n=10)          # Propose subgoals
 
             for z in Z:
                 xf, feasible = sub_solve(x, z.g)                               # Solve the subgoal
