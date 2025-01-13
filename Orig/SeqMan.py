@@ -44,18 +44,13 @@ if __name__ == "__main__":
             if not reachable(x, o):                                     # Check if agent can reach the object
                 continue
             
-            Z = propose_subgoals(x, o, method="random", n=10)          # Propose subgoals
+            Z = propose_subgoals(x, o, method="random", n=30)          # Propose subgoals
 
             for z in Z:
-                xf, feasible = sub_solve(x, z.g)                               # Solve the subgoal
+                xf, feasible = solve(x, z.g)                               # Solve the subgoal
                 
                 if feasible and not rej(L, xf.C, O):                      # Check if subgoal is config is feasible and not rejected
                     L.append(xf)                                           # Add the subgoal to the list of nodes
 
     if not is_solved:
         print("No solution found")
-
-
-
-
-
