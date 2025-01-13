@@ -121,7 +121,7 @@ def solve(x:Node, g:list):                                          # Solve the 
     S.addEntry([0, 0.1], ry.SY.touch, [agent, obj])
     S.addEntry([0.1, 0.25], ry.SY.stable, [agent, obj]) 
     S.addEntry([0.2, -1], ry.SY.above, [obj, "subgoal"])
-    S.addEntry([0.25, -1], ry.SY.stableOn, ["subgoal", obj])
+    S.addEntry([0.25, -1], ry.SY.stableOn, ["floor", obj])
 
     komo = S.getKomo_path(config, 100, 1e-3, 1e3, 1e-5, 1e3)
     ret = ry.NLP_Solver(komo.nlp(), verbose=0).solve()              # Solve
@@ -427,10 +427,6 @@ def rej(L: list, xf: ry.Config, O: list, threshold: float = 0.3):
             if similar_count == 2:
                 return True
             
-            
-    print("Reject etmedim")
-
-    print("Reject etmedim")
     return False
 
 
@@ -455,4 +451,3 @@ def trace_back(x:Node, C0:ry.Config):                                           
         #        C0.setFrameState(pi)
         #        C0.view(False, f"RRT {i}")
         #        time.sleep(0.05) 
-         
