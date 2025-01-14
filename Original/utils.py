@@ -154,7 +154,6 @@ def solve(x:Node, view:bool=False):                                          # S
 
     S.addEntry([0, -1], ry.SY.touch, [agent, obj])
     S.addEntry([0.5, -1], ry.SY.stable, [agent, obj])
-    S.addEntry([0.8, -1], ry.SY.positionEq, [obj, "subgoal"]) 
     S.addEntry([0.8, -1], ry.SY.above, [obj, "subgoal"])
 
     komo = S.getKomo_path(config, 30, 1e-1, 1e1, 1e-1, 1e2)
@@ -209,9 +208,10 @@ def sub_solve(x:Node, view:bool=False):                                         
     
     config1 = ry.Config()
     config1.addConfigurationCopy(x.C)
-    rrt1 = ry.PathFinder()                                           # Solve Bi-Directional RRT
-    rrt1.setProblem(config1, [q0], [qT], -1)
-    solution1 = rrt1.solve()
+    with suppress_stdout():
+        rrt1 = ry.PathFinder()                                           # Solve Bi-Directional RRT
+        rrt1.setProblem(config1, [q0], [qT])
+        solution1 = rrt1.solve()
 
     if solution1.feasible:
         if view:

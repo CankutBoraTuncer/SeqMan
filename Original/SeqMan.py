@@ -13,7 +13,7 @@ if __name__ == "__main__":
     C0.view_close()
 
     ry.params_add({
-        "rrt/stepsize": 0.01,
+        "rrt/stepsize": 0.005,
         "rrt/verbose": -1,
     })
 
