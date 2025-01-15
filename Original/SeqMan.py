@@ -1,9 +1,10 @@
 import robotic as ry
 from utils import (select_node, solve, sub_solve, reachable, propose_subgoals, rej, trace_back)
 from Node import Node
+import time
 
 if __name__ == "__main__":
-    task = "SeqMan-main/manipulation-puzzles-main/puzzles/p3-maze.g"
+    task = "SeqMan-main/manipulation-puzzles-main/puzzles/p6-wall.g"
     EGO_NAME = "ego"
     OBJ_NAME = "obj"
 
@@ -25,6 +26,9 @@ if __name__ == "__main__":
     is_solved = False               # Solution found flag
     try_count = 0                   # Number of tries
 
+    # Start the timer
+    start_time = time.time()
+
     while len(L) > 0:
         try_count += 1
         print(f"-----------------------------------------------Try count {try_count}-----------------------------------------------")
@@ -39,9 +43,13 @@ if __name__ == "__main__":
         X, feasible = sub_solve(x, False)                                       # Try to reach the goal
 
         if feasible:
-            X.C.view(True, "Solution found")
+            end_time = time.time()
+            # Calculate and print the runtime in seconds
+            runtime = end_time - start_time
+
+            X.C.view(True, f"Solution found in {runtime:.4f} seconds")
             trace_back(X, C0)              # Trace the solution back to x0
-            print("Solution found")
+            print(f"Solution found in {runtime:.4f} seconds")
             is_solved = True
             break
             
@@ -50,7 +58,7 @@ if __name__ == "__main__":
                 continue
             
             print("Generating subgoals")
-            Z = propose_subgoals(x, o, method="random", n=100)          # Propose subgoals
+            Z = propose_subgoals(x, o, method="random", n=10)          # Propose subgoals
 
             for i, z in enumerate(Z):
                 print(f"Subgoal {i+1}/{len(Z)} | try count {try_count} | Node: {z}", end="")  
