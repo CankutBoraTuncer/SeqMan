@@ -3,7 +3,7 @@ from utils import (select_node, solve, sub_solve, reachable, propose_subgoals, r
 from Node import Node
 
 if __name__ == "__main__":
-    task = "../config/p5-wall-easy.g"
+    task = "SeqMan-main/manipulation-puzzles-main/puzzles/p3-maze.g"
     EGO_NAME = "ego"
     OBJ_NAME = "obj"
 
@@ -11,9 +11,9 @@ if __name__ == "__main__":
     C0.addFile(task)
     C0.view(True)
     C0.view_close()
-
+    
     ry.params_add({
-        "rrt/stepsize": 0.005,
+        "rrt/stepsize": 0.01,
         "rrt/verbose": -1,
     })
 
@@ -29,14 +29,14 @@ if __name__ == "__main__":
         try_count += 1
         print(f"-----------------------------------------------Try count {try_count}-----------------------------------------------")
         x = select_node(L)                                              # Select the node using feasiblitiy heuristic
-        
+        print(f"Remaining node count: {len(L)}")
         print(f"Selected node: {x}")
 
         if x == None:                                                   # Abort if no node is selected
             break
 
         print("Testing end goal")
-        X, feasible = solve(x, True)                                       # Try to reach the goal
+        X, feasible = sub_solve(x, False)                                       # Try to reach the goal
 
         if feasible:
             X.C.view(True, "Solution found")
@@ -45,16 +45,16 @@ if __name__ == "__main__":
             is_solved = True
             break
             
-        for o in O:
-            if not reachable(x, o):                                     # Check if agent can reach the object
+        for o in O:      
+            if not reachable(x, o):                                  # Check if agent can reach the object
                 continue
             
             print("Generating subgoals")
-            Z = propose_subgoals(x, o, method="random", n=3)          # Propose subgoals
+            Z = propose_subgoals(x, o, method="random", n=100)          # Propose subgoals
 
             for i, z in enumerate(Z):
                 print(f"Subgoal {i+1}/{len(Z)} | try count {try_count} | Node: {z}", end="")  
-                xf, feasible = sub_solve(z, True) 
+                xf, feasible = sub_solve(z, False) 
                 print(f" | Feasible: {feasible}")  
                  
                 
@@ -63,7 +63,3 @@ if __name__ == "__main__":
 
     if not is_solved:
         print("No solution found")
-
-
-
-
