@@ -295,7 +295,7 @@ def propose_subgoals(x:Node, o:str, method:str="random", n:int=100, max_iter:int
             config_temp2       = ry.Config()
             config_temp2.addConfigurationCopy(config_temp)
 
-            col_post = config_temp.getCollisions(1e5)
+            col_post = config_temp2.getCollisions(1e5)
                 
             if len(col_pre) != len(col_post):                               # Reject the point if it is in collision
                 continue
