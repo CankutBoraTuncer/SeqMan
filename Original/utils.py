@@ -93,12 +93,14 @@ def score_function(x:Node):
     config = ry.Config()
     config.addConfigurationCopy(x.C)
 
+    config.addFrame("subgoal_mark", "world", "shape:ssBox, size:[0.2 0.2 .1 .005], color:[1. .3 .3 0.9], contact:0, logical:{table}").setPosition([*goal[0:2], 0.1])                        # Add goal frame
+
     # The subgoal scoring heuristic
-    vg = is_line_of_sight(config, x.g[0], x.agent, False)  # Check line of sight between object goal and agent
+    vg = is_line_of_sight(config, "subgoal_mark", x.agent, False)  # Check line of sight between object goal and agent
 
     config.delFrame(x.agent)
     # the agent is not counted as an obstacle
-    v0 = is_line_of_sight(config, "goal", x.g[0], False)   # Check line of sight between goal and object goal
+    v0 = is_line_of_sight(config, "goal", "subgoal_mark", False)   # Check line of sight between goal and object goal
     
     
     final_goal_pos = config.getFrame("goal").getPosition()
@@ -112,9 +114,8 @@ def score_function(x:Node):
         vdist = 5
     elif d < 4:
         vdist = 2
-        
-    #print(10*v0 + 5*vg + vdist)  
-    return 10*v0 + 5*vg + vdist
+    x.score = 10*v0 + 5*vg + vdist    
+
 
 def select_node(L:list):                                            # Returns the node with the lowest cost
     min_score = np.inf
@@ -124,9 +125,10 @@ def select_node(L:list):                                            # Returns th
     while t <= 2:                                                    # Each node can be tried twice 
         for x in L:        
             if x.t == t:
-                score = score_function(x)
-                if score  < min_score:                              # Node with the least try count has more priority
-                    min_score = score
+                if x.score < 0:
+                    score_function(x)
+                if x.score  < min_score:                              # Node with the least try count has more priority
+                    min_score = x.score
                     min_node = x
 
         if min_node is not None:                                    # Leave if a node is found
@@ -172,7 +174,7 @@ def solve(x:Node, view:bool=False):                                          # S
         p.append(komo_path)
         config.setFrameState(komo_path[-1])
 
-    return Node(config, Node.main_goal, path=p, layer_no=ln), ret.feasible
+    return Node(config, Node.main_goal, path=p, layer_no=ln, score=x.score), ret.feasible
 
 def sub_solve(x:Node, view:bool=False):                                          # Solve the task from the current configuration x to the end goal g
     config = ry.Config()
@@ -248,7 +250,7 @@ def sub_solve(x:Node, view:bool=False):                                         
                 config2.delFrame("subgoal")
                 p.append(komo_path)
 
-                return Node(config2, Node.main_goal, path=p, layer_no=ln), True
+                return Node(config2, Node.main_goal, path=p, layer_no=ln, score=x.score), True
     return None, False
 
 def reachable(x:Node, o:str):                                       # Return True if the agent can reach the object
@@ -301,12 +303,12 @@ def propose_subgoals(x:Node, o:str, method:str="random", n:int=100, max_iter:int
                 continue
         
             node = Node(config_base, [o, pn], path=x.path, layer_no=(x.layer_no+1))  # Create a new node
-
-            Z[node] = score_function(node)
+            score_function(node)
+            Z[node] = node.score
             iter += 1
     
     Z = sorted(Z, key=Z.get, reverse=True)[0:n]                # Sort the list using scoring function
-    Z.append(Node(x.C, x.g, path=x.path, layer_no=(x.layer_no+1))) # Add the original position as a subgoal
+    Z.append(Node(x.C, x.g, path=x.path, layer_no=(x.layer_no+1), score = x.score)) # Add the original position as a subgoal
 
     #for i, z in enumerate(Z):
     #    config.addFrame(f"subgoal_p{i}", "world", "shape:ssBox, size:[0.2 0.2 .1 .005], color:[.3 1 .3 0.9], contact:0, logical:{table}").setPosition(z.g[1])                        # Add goal frame

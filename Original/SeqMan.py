@@ -17,8 +17,8 @@ if __name__ == "__main__":
         "rrt/verbose": -1,
     })
 
-    O = [OBJ_NAME]                  # Objects
-    G = [OBJ_NAME, [*C0.frame("goal_visible").getPosition()[0:2], 0.2]]  # Main Goal
+    O = [OBJ_NAME] #"obj1", "obj2", "obj3", "obj4"]                  # Objects
+    G = [OBJ_NAME, [*C0.frame("goal_visible").getPosition()[0:2], 0.1]]  # Main Goal
     Node.main_goal = G              # Set the main goal
     L = [Node(C0, G, path=[[]], agent_name=EGO_NAME)]     # List of nodes
     
@@ -63,7 +63,6 @@ if __name__ == "__main__":
 
     if not is_solved:
         print("No solution found")
-
 
 
 
