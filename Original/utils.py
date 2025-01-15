@@ -208,50 +208,50 @@ def sub_solve(x:Node, view:bool=False):                                         
     qT = path[0]
 
     
-    config1 = ry.Config()
-    config1.addConfigurationCopy(x.C)
-    with suppress_stdout():
-        rrt1 = ry.PathFinder()                                           # Solve Bi-Directional RRT
-        rrt1.setProblem(config1, [q0], [qT])
-        solution1 = rrt1.solve()
+    config1, solution1 = solveRRT(config, q0, qT)
 
     if solution1.feasible:
-        if view:
-            config1.view(True, "Pick RRT")
-        for js1 in solution1.x:
-            config1.setJointState(js1)
-            if view:
-                config1.view(False)
-                time.sleep(0.005)
-            komo_path.append(config1.getFrameState())
-        config1.view_close()
+        path1 = getFrames(config1, solution1, view)
+        komo_path += path1
+        
         config1.attach(agent, obj)
 
-        q0 = path[0]
+        q0 = config1.getJointState()
         qT = path[1]
-        with suppress_stdout():
-            config2 = ry.Config()
-            config2.addConfigurationCopy(config1)
-            rrt2 = ry.PathFinder()                                           # Solve Bi-Directional RRT
-            rrt2.setProblem(config2, [q0], [qT])
-            solution2 = rrt2.solve()
+        
+        config2, solution2 = solveRRT(config1, q0, qT)
 
-            if solution2.feasible:
-                if view:
-                    config2.view(True, "Place RRT")
-                for js2 in solution2.x:
-                    config2.setJointState(js2)
-                    if view:
-                        config2.view(False)
-                        time.sleep(0.005)
-                    komo_path.append(config2.getFrameState())
-                config2.view_close()
-                config2.frame(obj).unLink()
-                config2.delFrame("subgoal")
-                p.append(komo_path)
+        if solution2.feasible:
+            path2 = getFrames(config2, solution2, view)
+            komo_path += path2
+            config2.frame(obj).unLink()
+            config2.delFrame("subgoal")
+            p.append(komo_path)
 
-                return Node(config2, Node.main_goal, path=p, layer_no=ln, score=x.score), True
+        return Node(config2, Node.main_goal, path=p, layer_no=ln, score=x.score), True
     return None, False
+
+def getFrames(config, solution, view):
+    komo_path = []
+    if view:
+        config.view(True, "Pick RRT")
+    for js in solution.x:
+        config.setJointState(js)
+        if view:
+            config.view(False)
+            time.sleep(0.005)
+        komo_path.append(config.getFrameState())
+    config.view_close()
+    return komo_path
+
+def solveRRT(C, q0, qT):
+    config = ry.Config()
+    config.addConfigurationCopy(C)
+    with suppress_stdout():
+        rrt = ry.PathFinder()                                           # Solve Bi-Directional RRT
+        rrt.setProblem(config, [q0], [qT])
+        solution = rrt.solve()
+    return config, solution
 
 def reachable(x:Node, o:str):                                       # Return True if the agent can reach the object
     config       = ry.Config()
