@@ -9,4 +9,5 @@ class Node():
         self.visit = 0
         self.FS = []
         self.score = 0
+        self.heatmap = {}
 

@@ -100,7 +100,7 @@ class SeGMan():
 
                 # For the reachable object, generate subgoals
                 # TODO: Complete generate_subgoal
-                Z = self.generate_subgoal()
+                Z = self.generate_subgoal(node, o)
 
                 # For each subgoal try to pick and place
                 for z in Z:
@@ -159,7 +159,9 @@ class SeGMan():
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
 
-    def generate_subgoal(self):
+    def generate_subgoal(self, node:Node, o:str):
+        img = SeGMan.get_image(node.C, (o+"_cam_rel"), self.verbose)
+
         return None
 
 # -------------------------------------------------------------------------------------------------------------- #
@@ -344,11 +346,11 @@ class SeGMan():
 # -------------------------------------------------------------------------------------------------------------- #
 
     @staticmethod
-    def get_image(C:ry.Config, cam_frame:str, verbose:int):
+    def get_image(C:ry.Config, cam_frame:str, verbose:int, is_ptc:bool=False):
         camera_view = ry.CameraView(C)
         cam = C.getFrame(cam_frame)
         camera_view.setCamera(cam)
-        img, _ = camera_view.computeImageAndDepth(C)
+        img, depth = camera_view.computeImageAndDepth(C)
         img = np.asarray(img)
 
         if(verbose > 1):
@@ -356,8 +358,10 @@ class SeGMan():
             fig.suptitle(f"Cam Frame: {cam_frame}", fontsize=16)
             plt.imshow(img)
             plt.show()
-        return img
-    
+        if not is_ptc:
+            return img, None
+        ptc = ry.depthImage2PointCloud(depth, camera_view.getFxycxy())
+        return img, ptc
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
