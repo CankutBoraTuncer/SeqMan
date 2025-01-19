@@ -8,6 +8,8 @@ if __name__ == "__main__":
     C.addFile("../src/config/p4-four-blocks/p4-four-blocks.g")
     C2 = ry.Config()
     C2.addFile("../src/config/p4-four-blocks/p4-four-blocks-actuated.g")
+    C3 = ry.Config()
+    C3.addFile("../src/config/p4-four-blocks/p4-four-blocks-heatmap.g")
 
     EGO_NAME = "ego"
     OBJ_NAME = "obj"

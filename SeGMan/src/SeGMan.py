@@ -3,12 +3,16 @@ import time
 import os
 from contextlib import contextmanager
 from itertools import combinations
-from Node import Node
+from src.Node import Node
+import numpy as np
+import matplotlib.pyplot as plt
+import math
 
 class SeGMan():
-    def __init__(self, C:ry.Config, C2:ry.Config, agent:str, obj:str, goal:list, obs_list:list, verbose:int):
+    def __init__(self, C:ry.Config, C2:ry.Config, C3:ry.Config, agent:str, obj:str, goal:list, obs_list:list, verbose:int):
         self.C = C
         self.C2 = C2
+        self.C3 = C3
         self.agent = agent
         self.obj = obj
         self.goal = goal
@@ -64,8 +68,6 @@ class SeGMan():
 
     def remove_obstacle(self, type:int):
         # Type 0: Agent cannot reach obj, Type: 1 Obj cannot reach goal
-        # TODO: Complete the Node
-        root_node = Node(self.C, layer = 0)
 
         # Generate obstacle pair
         self.generate_obs_pair()
@@ -73,18 +75,17 @@ class SeGMan():
         # Check which pairs are the source of the collision
         self.find_collision_pair(type)
 
-        for op in self.OP:
-            root_node.children.append(Node(self.C, op, root_node, layer=1))
-
         max_iter = 500
         idx = 0
+        N = []
+        for op in self.OP:
+            N.append(Node(self.C, op, layer=0))
 
-        while len(root_node.children) > 0 and idx > max_iter:
+        while len(N) > 0 and idx > max_iter:
             idx+=1
 
             # Select the best node
-            # TODO: write select_node function
-            node = self.select_node(root_node)
+            node = self.select_node(N)
 
             # Check if configuration is feasible
             f = False
@@ -114,12 +115,11 @@ class SeGMan():
                     f = self.find_place_path(z, self.agent, self.obj, 0, 2)
                     if f:
                         # Calculate the scene score
-                        # TODO: Complete scene_score function
-                        scene_score = self.node_score(node)
-                        node.children.append(Node(z.c, node.op, node, [], node.layer+1))
+                        node_score = self.node_score(node)
+                        N.append(Node(z.c, node.op, node, [], node.layer+1, score= node_score))
 
             if not any_reach:
-                root_node.children.remove(node)
+                N.remove(node)
 
         return None, False
 
@@ -127,8 +127,23 @@ class SeGMan():
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
 
-    def node_score(self):
-        return None
+    def node_score(self, node:Node):
+        Ct = ry.Config()
+        Ct.addConfigurationCopy(self.C3)
+
+        frame_names = node.C.getFrameNames()
+        for fn in frame_names:
+            if "obj" in fn:
+                Ct.frame(fn).setPosition(node.C.frame(fn).getPosition())
+        
+        if self.verbose > 1:
+            Ct.view(True, "Changed heatmap")
+        
+        scene_score = self.scene_score(Ct)
+        layer_score = node.layer
+        obj_score   = len(node.op)
+
+        return scene_score / (math.sqrt(layer_score * obj_score))
 
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
@@ -148,12 +163,14 @@ class SeGMan():
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
 
-    def select_node(root:Node):
-        # TODO: Complete the function
-        temp_node = root
-        while len(temp_node.children) > 0:
-            temp_node = temp_node.children[0]
-        return temp_node
+    def select_node(N:list):
+        best_score = float('-inf')
+        best_node = None
+        for node in N:
+            if node.score > best_score:
+                best_node = node
+                best_score = node.score
+        return best_node
     
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
@@ -288,6 +305,62 @@ class SeGMan():
                 return True
         return False
 
+# -------------------------------------------------------------------------------------------------------------- #
+# -------------------------------------------------------------------------------------------------------------- #
+# -------------------------------------------------------------------------------------------------------------- #
+
+    def scene_score(self, C:ry.Config, cam_frame:str):
+        img = SeGMan.get_image(C, cam_frame, self.verbose)
+        scene_score = 0
+        for r in img:
+            for rgb in r:
+                if rgb[0] > 200 and rgb[1] < 200 and rgb[2] < 200:
+                    scene_score += 1
+                elif rgb[1] > 200 and rgb[0] > 200 and rgb[2] < 200:
+                    scene_score += 2 
+                elif rgb[1] > 200 and rgb[0] < 200 and rgb[2] < 200:
+                    scene_score += 3   
+        if self.verbose > 0:
+            print(f"Scene score: {scene_score}")      
+        return scene_score
+    
+# -------------------------------------------------------------------------------------------------------------- #
+# -------------------------------------------------------------------------------------------------------------- #
+# -------------------------------------------------------------------------------------------------------------- #
+
+    @staticmethod
+    def get_image(C:ry.Config, cam_frame:str, verbose:int):
+        camera_view = ry.CameraView(C)
+        cam = C.getFrame(cam_frame)
+        camera_view.setCamera(cam)
+        img, _ = camera_view.computeImageAndDepth(C)
+        img = np.asarray(img)
+
+        if(verbose > 1):
+            fig = plt.figure()
+            fig.suptitle(f"Cam Frame: {cam_frame}", fontsize=16)
+            plt.imshow(img)
+            plt.show()
+        return img
+    
+# -------------------------------------------------------------------------------------------------------------- #
+# -------------------------------------------------------------------------------------------------------------- #
+# -------------------------------------------------------------------------------------------------------------- #
+    @staticmethod
+    def get_image(C:ry.Config, cam_frame:str, verbose):
+        camera_view = ry.CameraView(C)
+        cam = C.getFrame(cam_frame)
+        camera_view.setCamera(cam)
+        img, _ = camera_view.computeImageAndDepth(C)
+        img = np.asarray(img)
+
+        if(verbose > 1):
+            fig = plt.figure()
+            fig.suptitle(f"Cam Frame: {cam_frame}", fontsize=16)
+            plt.imshow(img)
+            plt.show()
+        return img
+    
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
