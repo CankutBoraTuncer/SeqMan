@@ -10,28 +10,32 @@ goal (floor){ shape:ssBox, Q:"t(-1.5 1.5 .0)", size:[0.2 0.2 .1 .005], color:[1.
 
 goal_visible (floor) 	{ shape:ssBox, Q:"t(-1.5 1.5 0.1)", size:[0.2 0.2 0.1 0.005], color:[1. .3 .3] }
 
-obj1(world) {
-    shape:ssBox, Q:[-1.2 -0.3 .10], size:[1 0.2 .2 .02], logical={ object } nomass:1,  color:[0 0 1.0],
+obj1Joint(world){ Q:[0.0 0.0 0.1] } # works
+obj1(obj1Joint) {
+    shape:ssBox, Q:[-1.2 -0.3 .0], size:[1 0.2 .2 .02], logical={ object } nomass:1,  color:[0 0 1.0],
     joint:rigid, friction:.1  contact: 1
 }
 
-obj2(world) {
-    shape:ssBox, Q:[-0.75 -1.2 .10], size:[.2 1 .2 .02], logical={ object } nomass:1,  color:[0 1.0 0],
+obj2Joint(world){ Q:[0.0 0.0 0.1] } # works
+obj2(obj2Joint) {
+    shape:ssBox, Q:[-0.75 -1.2 .0], size:[.2 1 .2 .02], logical={ object } nomass:1,  color:[0 1.0 0],
     joint:rigid, friction:.1  contact: 1
 }
 
-obj3(world) {
-    shape:ssBox, Q:[-0.4 -1.4 .10], size:[.2 1 .2 .02], logical={ object } nomass:1,  color:[0 1.0 1.0],
+obj3Joint(world){ Q:[0.0 0.0 0.1] } # works
+obj3(obj3Joint) {
+    shape:ssBox, Q:[-0.4 -1.4 .0], size:[.2 1 .2 .02], logical={ object } nomass:1,  color:[0 1.0 1.0],
     joint:rigid, friction:.1  contact: 1
 }
 
-
-obj4(world) {
-    shape:ssBox, Q:[-1.4 -0.75 .10], size:[1 0.2 .2 .02], logical={ object } nomass:1,  color:[1.0 0 0],
+obj4Joint(world){ Q:[0.0 0.0 0.1] } # works
+obj4(obj4Joint) {
+    shape:ssBox, Q:[-1.4 -0.75 .0], size:[1 0.2 .2 .02], logical={ object } nomass:1,  color:[1.0 0 0],
     joint:rigid, friction:.1  contact: 1
 }
 
-obj(world) {
-    shape:ssBox, Q:[1.6 -0.5 .10], size:[.3 .3 0.2 .02], logical={ object }  nomass:1, color:[0 0 1.0],
+objJoint(world){ Q:[0.0 0.0 0.1] } # works
+obj(objJoint) {
+    shape:ssBox, Q:[1.6 -0.5 .0], size:[.3 .3 0.2 .02], logical={ object }  nomass:1, color:[0 0 1.0],
     joint:rigid, friction:.1  contact: 1
 }

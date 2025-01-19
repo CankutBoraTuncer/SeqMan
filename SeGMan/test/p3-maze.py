@@ -17,6 +17,7 @@ if __name__ == "__main__":
     C.view_close()
 
     segman = SeGMan(C, C2, EGO_NAME, OBJ_NAME, GOAL, [], 0)
+    
     if segman.run():
         segman.display_solution()
 
