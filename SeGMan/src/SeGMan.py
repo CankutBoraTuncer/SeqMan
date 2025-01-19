@@ -9,10 +9,9 @@ import matplotlib.pyplot as plt
 import math
 
 class SeGMan():
-    def __init__(self, C:ry.Config, C2:ry.Config, C3:ry.Config, agent:str, obj:str, goal:list, obs_list:list, verbose:int):
+    def __init__(self, C:ry.Config, C_hm:ry.Config, agent:str, obj:str, goal:list, obs_list:list, verbose:int):
         self.C = C
-        self.C2 = C2
-        self.C3 = C3
+        self.C_hm = C_hm
         self.agent = agent
         self.obj = obj
         self.goal = goal
@@ -23,6 +22,7 @@ class SeGMan():
 
     def run(self):
         found = False
+        C2 = self.make_agent(self.C, self.obj)
         while not found:
             # Find a feasible pick configuration and path
             f = self.find_pick_path(self.C, self.agent, self.obj, self.FS, self.verbose, 1, 1)
@@ -35,8 +35,8 @@ class SeGMan():
                     return
             
             # Check for object path
-            self.C2.setJointState(self.C.frame(self.obj).getPosition()[0:2])
-            P, fr = self.find_place_path(self.C2, self.goal, 1)
+            C2.setJointState(self.C.frame(self.obj).getPosition()[0:2])
+            P, fr = self.find_place_path(C2, self.goal, 1)
 
             # If it is not possible to go check if there is an obstacle that can be removed
             if not fr: 
@@ -46,14 +46,7 @@ class SeGMan():
                     return
             
             # Follow the RRT path with KOMO
-            for pi, wp in enumerate(P):
-                if self.verbose > 0:
-                    print(f"{pi} / {len(P)-1}")
-                fk = self.solve_path(self.C, wp, self.agent, self.obj, self.FS, 1)
-                if not fk:
-                    break
-                if pi == len(P)-1:
-                    found = True
+            found = self.solve_path(self.C, P, self.agent, self.obj, self.FS, 1)
 
         if found:
             print("Solution found!")
@@ -94,7 +87,7 @@ class SeGMan():
                 if f:
                     return node.FS, True
             else:
-                P, f = self.find_place_path(node.C, self.agent, self.obj, 0, 2)
+                P, f = self.find_place_path(node.C, node.C.frame(self.obj).getPosition()[0:2], 0, 2)
                 if f:
                     return P, True    
             
@@ -110,13 +103,15 @@ class SeGMan():
                 Z = self.generate_subgoal()
 
                 # For each subgoal try to pick and place
-                # TODO: Adjust the solution addition to Node
                 for z in Z:
-                    f = self.find_place_path(z, self.agent, self.obj, 0, 2)
-                    if f:
-                        # Calculate the scene score
-                        node_score = self.node_score(node)
-                        N.append(Node(z.c, node.op, node, [], node.layer+1, score= node_score))
+                    C2 = self.make_agent(node.C, o)
+                    P, f1 = self.find_place_path(C2, z, 0, 2)
+                    if f1: 
+                        feas = self.solve_path(self.C, P, self.agent, self.obj, self.FS, 1)
+                        if feas:
+                            # Calculate the scene score
+                            node_score = self.node_score(node)
+                            N.append(Node(z.c, node.op, node, [], node.layer+1, score= node_score))
 
             if not any_reach:
                 N.remove(node)
@@ -149,7 +144,22 @@ class SeGMan():
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
 
-    def generate_subgoal():
+    def make_agent(self, C:ry.Config, obj:str):
+        C2 = ry.Config()
+        C2.addConfigurationCopy(C)
+        frame_names = C2.getFrameNames()
+        for fn in frame_names:
+            if "ego" in fn:
+                C2.delFrame(fn)
+
+        C2.frame(obj).setJoint(ry.JT.transXY, limits=[-4, 4, -4, 4])
+        return C2
+   
+# -------------------------------------------------------------------------------------------------------------- #
+# -------------------------------------------------------------------------------------------------------------- #
+# -------------------------------------------------------------------------------------------------------------- #
+
+    def generate_subgoal(self):
         return None
 
 # -------------------------------------------------------------------------------------------------------------- #
@@ -196,7 +206,7 @@ class SeGMan():
             if type == 0:
                 f = self.find_pick_path(Ct, self.agent, self.obj, [], 0, 2, 2)
             else:
-                f = self.find_place_path(Ct, self.agent, self.obj, 0, 2)
+                f = self.find_place_path(Ct, Ct.frame(self.obj).getPosition()[0:2], 0, 2)
             if self.verbose > 0:
                 print(f"Is {op} blocking path: {f}")
             if not f:
@@ -254,7 +264,7 @@ class SeGMan():
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
 
-    def find_place_path(self, C:ry.Config, goal:list, verbose: int, N:int = 20):
+    def find_place_path(self, C:ry.Config, goal:list, obj:str, verbose: int, N:int = 20):
         for n in range(N):
             # Find RRT path for object
             if verbose > 0:
@@ -280,30 +290,35 @@ class SeGMan():
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
 
-    def solve_path(self, C:ry.Config, waypoint:list, agent:str, obj:str, FS:list, verbose: int):
-        K = 20
-        for k in range(K):
-            C.addFrame("subgoal", "world", "shape: marker, size: [0.1]").setPosition([*waypoint, 0.2])
-            if verbose > 0:
-                print(f"Trying Move KOMO for {k}")
-            S = ry.Skeleton()
-            S.enableAccumulatedCollisions(True)
-            S.addEntry([0.1, -1], ry.SY.touch, [agent, obj])
-            S.addEntry([0.2, -1], ry.SY.stable, [agent, obj])
-            S.addEntry([0.3, 0.4], ry.SY.positionEq, ["subgoal", obj])
-            komo = S.getKomo_path(C, 10, 1e-5, 1e-3, 1e-5, 1e1)
-            ret = ry.NLP_Solver(komo.nlp(), verbose=0).solve() 
-            C.delFrame("subgoal")
-            feasible = ret.eq < 1
-            if verbose > 1 and not feasible:
-                komo.report(True, True, True)
-                komo.view_play(True, f"Move Komo Solution: {feasible}")
-                komo.view_close()
-            if feasible:
-                C.setFrameState(komo.getPathFrames()[-1])
-                FS.append(komo.getPathFrames())
-                return True
-        return False
+    def solve_path(self, C:ry.Config, P:list, agent:str, obj:str, FS:list, verbose: int):
+        for pi, wp in enumerate(P):
+            if self.verbose > 0:
+                print(f"{pi} / {len(P)-1}")
+            K = 20
+            for k in range(K):
+                C.addFrame("subgoal", "world", "shape: marker, size: [0.1]").setPosition([*wp, 0.2])
+                if verbose > 0:
+                    print(f"Trying Move KOMO for {k}")
+                S = ry.Skeleton()
+                S.enableAccumulatedCollisions(True)
+                S.addEntry([0.1, -1], ry.SY.touch, [agent, obj])
+                S.addEntry([0.2, -1], ry.SY.stable, [agent, obj])
+                S.addEntry([0.3, 0.4], ry.SY.positionEq, ["subgoal", obj])
+                komo = S.getKomo_path(C, 10, 1e-5, 1e-3, 1e-5, 1e1)
+                ret = ry.NLP_Solver(komo.nlp(), verbose=0).solve() 
+                C.delFrame("subgoal")
+                feasible = ret.eq < 1
+                if verbose > 1 and not feasible:
+                    komo.report(True, True, True)
+                    komo.view_play(True, f"Move Komo Solution: {feasible}")
+                    komo.view_close()
+                if feasible:
+                    C.setFrameState(komo.getPathFrames()[-1])
+                    FS.append(komo.getPathFrames())
+                    break
+                if k == K-1:
+                    return False
+        return True
 
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
