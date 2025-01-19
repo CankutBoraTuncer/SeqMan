@@ -3,6 +3,7 @@ import time
 import os
 from contextlib import contextmanager
 from itertools import combinations
+from Node import Node
 
 class SeGMan():
     def __init__(self, C:ry.Config, C2:ry.Config, agent:str, obj:str, goal:list, obs_list:list, verbose:int):
@@ -63,34 +64,43 @@ class SeGMan():
 
     def remove_obstacle(self, type:int):
         # Type 0: Agent cannot reach obj, Type: 1 Obj cannot reach goal
+        # TODO: Complete the Node
+        root_node = Node(self.C, layer = 0)
+
         # Generate obstacle pair
         self.generate_obs_pair()
 
         # Check which pairs are the source of the collision
         self.find_collision_pair(type)
 
+        for op in self.OP:
+            root_node.children.append(Node(self.C, op, root_node, layer=1))
+
         max_iter = 500
         idx = 0
-        N = []
-        while len(N) > 0 and idx > max_iter:
+
+        while len(root_node.children) > 0 and idx > max_iter:
+            idx+=1
+
             # Select the best node
             # TODO: write select_node function
-            n = self.select_node(N)
+            node = self.select_node(root_node)
 
             # Check if configuration is feasible
             f = False
             if type==0:
-                f = self.find_pick_path(n, self.agent, self.obj, n, 0, 2, 2)
+                f = self.find_pick_path(node.C, self.agent, self.obj, node.FS, 0, 2, 2)
+                if f:
+                    return node.FS, True
             else:
-                f = self.find_place_path(n, self.agent, self.obj, 0, 2)
-            if f:
-                return n, True
+                P, f = self.find_place_path(node.C, self.agent, self.obj, 0, 2)
+                if f:
+                    return P, True    
             
             # Check which objects are reachable in the pair
             any_reach = False
-            for o in n:
-                # TODO: Complete is_reachable
-                if not self.is_reachable():
+            for o in node.op:
+                if not self.is_reachable(node.C, o):
                     continue
                 any_reach = True
 
@@ -103,12 +113,22 @@ class SeGMan():
                 for z in Z:
                     f = self.find_place_path(z, self.agent, self.obj, 0, 2)
                     if f:
-                        N.append(z)
+                        # Calculate the scene score
+                        # TODO: Complete scene_score function
+                        scene_score = self.node_score(node)
+                        node.children.append(Node(z.c, node.op, node, [], node.layer+1))
 
             if not any_reach:
-                N.remove(n)
+                root_node.children.remove(node)
 
         return None, False
+
+# -------------------------------------------------------------------------------------------------------------- #
+# -------------------------------------------------------------------------------------------------------------- #
+# -------------------------------------------------------------------------------------------------------------- #
+
+    def node_score(self):
+        return None
 
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
@@ -121,15 +141,19 @@ class SeGMan():
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
 
-    def is_reachable(self):
-        return False
+    def is_reachable(self, C:ry.Config, o:str):
+        return self.find_pick_path(C, self.agent, o, [], 0, 2, 2)
     
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
 
-    def select_node(N:list):
-        return None
+    def select_node(root:Node):
+        # TODO: Complete the function
+        temp_node = root
+        while len(temp_node.children) > 0:
+            temp_node = temp_node.children[0]
+        return temp_node
     
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
