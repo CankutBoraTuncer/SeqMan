@@ -35,9 +35,11 @@ class SeGMan():
                 fs = self.remove_obstacle(0)
                 if not fs:
                     return
+                else:
+                    continue
             
-            print(f, js)
             self.C.setJointState(js)
+            self.C.view(True, "True")
 
             # Check for object path
             C2.setJointState(self.C.frame(self.obj).getPosition()[0:2])
@@ -49,7 +51,9 @@ class SeGMan():
                 fs = self.remove_obstacle(1)
                 if not fs:
                     return
-            
+                else:
+                    continue
+                
             # Follow the RRT path with KOMO
             found, self.C = self.solve_path(self.C, P, self.agent, self.obj, self.FS, self.verbose)
 
@@ -79,26 +83,27 @@ class SeGMan():
         for op in self.OP:
             C_node = ry.Config()
             C_node.addConfigurationCopy(self.C)
-            node_score = self.node_score(C_node, 1, op, 1, True)
-            root_node = Node(C_node, op, layer=1,score=node_score)
-            print("Root Node: ", root_node)
+            root_node = Node(C_node, op, layer=1,score=-1)
             N.append(root_node)
         
+        prev_node = None
         while len(N) > 0 and idx < max_iter:
-            self.verbose = -1
+            self.verbose = 1
             idx+=1
 
             # Select the best node
-            node = self.select_node(N)
-            node.visit += 1
+            node = self.select_node(N, prev_node)
             print("Selected Node: " , node)
+
+            node.visit += 1
+            prev_node = node
 
             # Check if configuration is feasible
             f = False
             if type==0:
                 f, _ = self.find_pick_path(node.C, self.agent, self.obj, node.FS, self.verbose, K=1, N=1)
                 if f:
-                    node.C.view(True, "Pick Solution")
+                    print("SOLUTION FOUNDDDDD")
                     return node.FS, True
             else:
                 P, f = self.find_place_path(node.C, node.C.frame(self.obj).getPosition()[0:2], self.verbose, N=2)
@@ -108,7 +113,7 @@ class SeGMan():
             # Check which objects are reachable in the pair
             any_reach = False
             for o in node.op:
-                if not self.is_reachable(node.C, o):
+                if not self.is_reachable(node, o):
                     continue
                 any_reach = True
 
@@ -122,12 +127,11 @@ class SeGMan():
                     if f1: 
                         feas, C_n = self.solve_path(node.C, P, self.agent, o, self.FS, self.verbose, K=2)
                         if feas:
-                            self.verbose = 3
                             # Calculate the scene score
-                            node_score = self.node_score(C_n, node.layer, node.op, node.visit)
-                            new_node = Node(C=C_n, op=node.op, layer=node.layer+1, FS=node.FS, score = node_score)
+                            node_score = self.node_score(C_n, node.layer+1, node.op, 1, False)
+                            new_node = Node(C=C_n, op=node.op, layer=node.layer+1, FS=node.FS, score=node_score, is_reachable=True)
                             print("NEW NODE: ", new_node)
-                            C_n.view(True, "New Node")
+                            #C_n.view(True, "New Node")
                             N.append(new_node)
                             
             if not any_reach:
@@ -145,7 +149,7 @@ class SeGMan():
         Ct = ry.Config()
         Ct.addConfigurationCopy(self.C_hm)
 
-        c0 = 600
+        c0 = 20
         c1 = 20
         for op in OP:
             Ct.frame(op).setPosition(C.frame(op).getPosition())
@@ -155,15 +159,16 @@ class SeGMan():
 
         obj_score   = len(OP)
         layer_score = layer
+        visit_score = visit
 
         if not isFirst:
             scene_score_dif= 0
             for o in OP:
                 scene_score = self.scene_score(Ct, o + "_cam_g")
                 scene_score_dif += scene_score - self.root_scene_score[o]
-                print(f"Scene score for {o}: {scene_score}, root: {self.root_scene_score[o]}")
+                print(f"Scene score dif {scene_score_dif}")
 
-            node_score = scene_score_dif / visit + c1 * math.sqrt(1/(math.log(1+obj_score)*layer_score))
+            node_score = math.copysign(1, scene_score_dif) * math.sqrt(abs(scene_score_dif))/ layer_score + c1 * math.sqrt(1/(math.log(1+obj_score))) / visit_score
         else:
             for o in OP:
                 if not self.root_scene_score.get(o):
@@ -223,23 +228,32 @@ class SeGMan():
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
 
-    def is_reachable(self, C:ry.Config, o:str):
+    def is_reachable(self, node:Node, o:str):
         if self.verbose > 0:
             print(f"Checking if object {o} is reachable")
-        
-        f, _ = self.find_pick_path(C, self.agent, o, [], self.verbose, K=5, N=1)
-        return f
+        if not node.is_reachable:
+            node.is_reachable, _ = self.find_pick_path(node.C, self.agent, o, [], self.verbose, K=5, N=1)  
+        return node.is_reachable
     
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
 
-    def select_node(self, N:list):
+    def select_node(self, N:list, prev:Node):
         if self.verbose > 0:
             print("Selecting the node")
         best_score = float('-inf')
         best_node = None
         for node in N:
+            if node.score == -1:
+                node_score = self.node_score(node.C, node.layer, node.op, node.visit, True)
+                node.score = node_score
+                print("Root Node: ", node)
+            else:
+                if node == prev:
+                    node_score = self.node_score(node.C, node.layer, node.op, node.visit, False)
+                    node.score = node_score
+                    print("Tried Node: ", node)
             if node.score > best_score:
                 best_node = node
                 best_score = node.score

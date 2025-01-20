@@ -14,7 +14,7 @@ if __name__ == "__main__":
     GOAL     = C.getFrame("goal").getPosition()[0:2]
     OBS_LIST = ["obj1", "obj2", "obj3", "obj4"]
     C.view(True)
-
+    C.view_close()
     segman = SeGMan(C, C_hm, EGO_NAME, OBJ_NAME, GOAL, OBS_LIST, 1)
     if segman.run():
         segman.display_solution()
