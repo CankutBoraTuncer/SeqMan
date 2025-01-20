@@ -103,6 +103,7 @@ class SeGMan():
                 f, _ = self.find_pick_path(node.C, self.agent, self.obj, node.FS, self.verbose, K=1, N=1)
                 if f:
                     print("SOLUTION FOUNDDDDD")
+                    node.C.view(True, "SOLUTION")
                     return node.FS, True
             else:
                 P, f = self.find_place_path(node.C, node.C.frame(self.obj).getPosition()[0:2], self.verbose, N=2)
@@ -117,20 +118,20 @@ class SeGMan():
                 any_reach = True
 
                 # For the reachable object, generate subgoals
-                Z = self.generate_subgoal(node, o, sample_count=5)
+                Z = self.generate_subgoal(node, o, sample_count=3)
 
                 # For each subgoal try to pick and place
                 for z in Z:
                     C2 = self.make_agent(node.C, o)
                     P, f1 = self.find_place_path(C2, z, self.verbose, N=2)
                     if f1: 
-                        feas, C_n = self.solve_path(node.C, P, self.agent, o, self.FS, self.verbose, K=5)
+                        feas, C_n = self.solve_path(node.C, P, self.agent, o, self.FS, self.verbose, K=2)
                         if feas:
                             # Calculate the scene score
                             node_score = self.node_score(C_n, node.layer+1, node.op, 1, False)
                             new_node = Node(C=C_n, op=node.op, layer=node.layer+1, FS=node.FS, score=node_score, is_reachable=True)
                             print("NEW NODE: ", new_node)
-                            C_n.view(True, "New Node")
+                            #C_n.view(True, "New Node")
                             N.append(new_node)
                             
             if not any_reach:
@@ -168,7 +169,7 @@ class SeGMan():
                 scene_score_dif += scene_score - self.root_scene_score[o]
                 print(f"Scene score dif {scene_score_dif}")
 
-            node_score = (b + math.copysign(1, scene_score_dif) * math.sqrt(abs(scene_score_dif)/layer_score)) + c1 * math.sqrt(1/(math.log(1+obj_score))) / visit_score
+            node_score = (b + math.copysign(1, scene_score_dif) * math.sqrt(abs(scene_score_dif))) / layer_score + c1 * math.sqrt(1/(math.log(1+obj_score))) / visit_score
         else:
             for o in OP:
                 if not self.root_scene_score.get(o):
@@ -244,7 +245,9 @@ class SeGMan():
             print("Selecting the node")
         best_score = float('-inf')
         best_node = None
+
         for node in N:
+
             if node.score == -1:
                 node_score = self.node_score(node.C, node.layer, node.op, node.visit, True)
                 node.score = node_score
@@ -254,9 +257,15 @@ class SeGMan():
                     node_score = self.node_score(node.C, node.layer, node.op, node.visit, False)
                     node.score = node_score
                     print("Tried Node: ", node)
+                
             if node.score > best_score:
                 best_node = node
                 best_score = node.score
+            
+        if prev != None and prev.op != None and len(best_node.op) > len(prev.op) and all(element in best_node.op for element in prev.op):
+            N.append(Node(prev.C, best_node.op, layer=best_node.layer, FS=prev.FS, score=best_node.score, is_reachable=best_node.is_reachable))
+            prev.C.view(True, "New Node")
+
         return best_node
     
 # -------------------------------------------------------------------------------------------------------------- #
