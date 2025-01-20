@@ -53,7 +53,7 @@ class SeGMan():
                     return
                 else:
                     continue
-                
+
             # Follow the RRT path with KOMO
             found, self.C = self.solve_path(self.C, P, self.agent, self.obj, self.FS, self.verbose)
 
@@ -88,7 +88,6 @@ class SeGMan():
         
         prev_node = None
         while len(N) > 0 and idx < max_iter:
-            self.verbose = 1
             idx+=1
 
             # Select the best node
@@ -118,20 +117,20 @@ class SeGMan():
                 any_reach = True
 
                 # For the reachable object, generate subgoals
-                Z = self.generate_subgoal(node, o, sample_count=2)
+                Z = self.generate_subgoal(node, o, sample_count=5)
 
                 # For each subgoal try to pick and place
                 for z in Z:
                     C2 = self.make_agent(node.C, o)
                     P, f1 = self.find_place_path(C2, z, self.verbose, N=2)
                     if f1: 
-                        feas, C_n = self.solve_path(node.C, P, self.agent, o, self.FS, self.verbose, K=2)
+                        feas, C_n = self.solve_path(node.C, P, self.agent, o, self.FS, self.verbose, K=5)
                         if feas:
                             # Calculate the scene score
                             node_score = self.node_score(C_n, node.layer+1, node.op, 1, False)
                             new_node = Node(C=C_n, op=node.op, layer=node.layer+1, FS=node.FS, score=node_score, is_reachable=True)
                             print("NEW NODE: ", new_node)
-                            #C_n.view(True, "New Node")
+                            C_n.view(True, "New Node")
                             N.append(new_node)
                             
             if not any_reach:
@@ -151,6 +150,7 @@ class SeGMan():
 
         c0 = 20
         c1 = 20
+        b  = 50
         for op in OP:
             Ct.frame(op).setPosition(C.frame(op).getPosition())
             
@@ -168,12 +168,12 @@ class SeGMan():
                 scene_score_dif += scene_score - self.root_scene_score[o]
                 print(f"Scene score dif {scene_score_dif}")
 
-            node_score = math.copysign(1, scene_score_dif) * math.sqrt(abs(scene_score_dif))/ layer_score + c1 * math.sqrt(1/(math.log(1+obj_score))) / visit_score
+            node_score = (b + math.copysign(1, scene_score_dif) * math.sqrt(abs(scene_score_dif)/layer_score)) + c1 * math.sqrt(1/(math.log(1+obj_score))) / visit_score
         else:
             for o in OP:
                 if not self.root_scene_score.get(o):
                     self.root_scene_score[o] = self.scene_score(Ct, o + "_cam_g")
-            node_score = c0 * math.sqrt(1/(math.log(1+obj_score)))
+            node_score = b + c0 * math.sqrt(1/(math.log(1+obj_score)))
         return node_score
     
 # -------------------------------------------------------------------------------------------------------------- #
@@ -414,7 +414,7 @@ class SeGMan():
         if self.verbose > 0:
             print("Solving for path")
         for pi, wp in enumerate(P):
-            if self.verbose > 0:
+            if verbose > 1:
                 print(f"{pi} / {len(P)-1}")
             for k in range(K):
                 Ct.addFrame("subgoal", "world", "shape: marker, size: [0.1]").setPosition([*wp, 0.2])
@@ -436,9 +436,9 @@ class SeGMan():
                     Ct.setFrameState(komo.getPathFrames()[-1])
                     FS.append(komo.getPathFrames())
                     break
-                if k == K-1:
-                    return True, Ct
-        return True, Ct
+            if pi == len(P)-1:
+                return True, Ct
+        return False, None
 
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
