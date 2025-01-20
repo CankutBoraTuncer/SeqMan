@@ -8,6 +8,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import math
 import random
+import copy
 
 class SeGMan():
     def __init__(self, C:ry.Config, C_hm:ry.Config, agent:str, obj:str, goal:list, obs_list:list, verbose:int):
@@ -278,7 +279,6 @@ class SeGMan():
         for r in range(1, len(self.obs_list) + 1):
             self.OP.extend(combinations(self.obs_list, r))
         self.OP = [list(item) for item in self.OP]
-
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
@@ -288,27 +288,36 @@ class SeGMan():
         
         goal = self.C.frame(self.obj).getPosition()[0:2]
         goal_set = False
-        for _, op in enumerate(self.OP):
+        OP = copy.deepcopy(self.OP)
+
+        for _, op in enumerate(OP):
             Ct = ry.Config()
             Ct.addConfigurationCopy(self.C)
             if self.verbose > 1:
                 print(f"Trying: {op}")
+            
             for o in op:
                 Ct.frame(o).setContact(0)
+
             f = False
             if type == 0:
                 if not goal_set:
-                    f, goal = self.find_pick_komo(Ct, self.agent, self.obj, 0, K=2)
+                    f, goal = self.find_pick_komo(Ct, self.agent, self.obj, self.verbose, K=2)
                     if f:
                         goal_set = True
+                        f, _ = self.run_rrt(Ct, goal, [], self.verbose, N=2)
+
                 else:
-                    f, _ = self.run_rrt(Ct, goal, [], 0, N=2)
+                    f, _ = self.run_rrt(Ct, goal, [], self.verbose, N=2)
             else:
                 f = self.find_place_path(Ct, goal, self.verbose, N=2)
-            if self.verbose > 1:
-                print(f"Is {op} blocking path: {f}")
+
             if not f:
                 self.OP.remove(op)
+                
+            if self.verbose > 1:
+                print(f"Is {op} blocking path: {f}")
+
         print(f"The blocking obstacle pairs: {self.OP}")
 
 # -------------------------------------------------------------------------------------------------------------- #
@@ -362,7 +371,7 @@ class SeGMan():
                 print(f"Trying Pick RRT for {n}")
             with self.suppress_stdout():
                 ry.params_clear()
-                ry.params_add({"rrt/stepsize": 0.1})
+                ry.params_add({"rrt/stepsize": 0.05})
                 rrt = ry.PathFinder()                    
                 rrt.setProblem(Ct, Ct.getJointState(), goal)
                 s = rrt.solve()
