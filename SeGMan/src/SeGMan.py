@@ -9,6 +9,10 @@ import matplotlib.pyplot as plt
 import math
 import random
 import copy
+import numpy as np
+from frechetdist import frdist
+from sklearn.cluster import DBSCAN
+from collections import defaultdict
 
 class SeGMan():
     def __init__(self, C:ry.Config, C_hm:ry.Config, agent:str, obj:str, goal:list, obs_list:list, verbose:int):
@@ -39,7 +43,7 @@ class SeGMan():
                 else:
                     continue
             
-            self.C.setJointState(js)
+            self.C.setJointState(js[-1])
             self.C.view(True, "True")
 
             # Check for object path
@@ -74,9 +78,10 @@ class SeGMan():
 
         # Generate obstacle pair
         self.generate_obs_pair()
-
+        #self.verbose = 3
         # Check which pairs are the source of the collision
-        self.find_collision_pair(type)
+        pair_path = self.find_collision_pair(type)
+        self.path_similarity_index(pair_path)
 
         max_iter = 500
         idx = 0
@@ -103,8 +108,8 @@ class SeGMan():
             if type==0:
                 f, _ = self.find_pick_path(node.C, self.agent, self.obj, node.FS, self.verbose, K=1, N=1)
                 if f:
-                    print("SOLUTION FOUNDDDDD")
                     node.C.view(True, "SOLUTION")
+                    self.display_solution()
                     return node.FS, True
             else:
                 P, f = self.find_place_path(node.C, node.C.frame(self.obj).getPosition()[0:2], self.verbose, N=2)
@@ -131,7 +136,7 @@ class SeGMan():
                             # Calculate the scene score
                             node_score = self.node_score(C_n, node.layer+1, node.op, 1, False)
                             new_node = Node(C=C_n, op=node.op, layer=node.layer+1, FS=node.FS, score=node_score, is_reachable=True)
-                            print("NEW NODE: ", new_node)
+                            
                             #C_n.view(True, "New Node")
                             N.append(new_node)
                             
@@ -139,8 +144,72 @@ class SeGMan():
                 if self.verbose > 0:
                     print("Node REMOVED: ", node.op)
                 N.remove(node)
+                prev_node = None
 
         return False
+# -------------------------------------------------------------------------------------------------------------- #
+# -------------------------------------------------------------------------------------------------------------- #
+# -------------------------------------------------------------------------------------------------------------- #
+    def path_similarity_index(self, pair_path:dict):  
+        # First make all the arrays the same length
+        min_length = min(len(value) for value in pair_path.values())
+        pair_path = {key: value[:min_length] for key, value in pair_path.items()}
+
+        # Extract keys and values
+        path_names = list(pair_path.keys())
+        path_values = list(pair_path.values())
+
+        # Compute pairwise Fréchet distances
+        n = len(path_values)
+        distance_matrix = np.zeros((n, n))
+
+        for i in range(n):
+            for j in range(i + 1, n):
+                distance = frdist(path_values[i], path_values[j])
+                distance_matrix[i, j] = distance
+                distance_matrix[j, i] = distance
+
+        # Build the similarity graph
+        graph = defaultdict(list)
+        for i in range(n):
+            distances = distance_matrix[i]
+            # Exclude self-distance (set it to infinity temporarily)
+            distances[i] = np.inf
+            most_similar_index = np.argmin(distances)
+            # Add edges in both directions to ensure undirected graph
+            graph[path_names[i]].append(path_names[most_similar_index])
+            graph[path_names[most_similar_index]].append(path_names[i])
+
+        # Perform connected components analysis
+        visited = set()
+        clusters = []
+
+        def dfs(node, cluster):
+            visited.add(node)
+            cluster.append(node)
+            for neighbor in graph[node]:
+                if neighbor not in visited:
+                    dfs(neighbor, cluster)
+
+        for node in path_names:
+            if node not in visited:
+                cluster = []
+                dfs(node, cluster)
+                clusters.append(cluster)
+
+        # Group paths by cluster
+        clustered_paths = []
+        for cluster in clusters:
+            cluster_dict = {name: pair_path[name] for name in cluster}
+            clustered_paths.append(cluster_dict)
+
+        # Output clustered dictionaries
+        for i, cluster_dict in enumerate(clustered_paths):
+            print(f"Cluster {i + 1}:")
+            for name, path in cluster_dict.items():
+                print(f"  Obj: {name}")
+
+        self.C.view(True, "Paurse")
 
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
@@ -279,6 +348,7 @@ class SeGMan():
         for r in range(1, len(self.obs_list) + 1):
             self.OP.extend(combinations(self.obs_list, r))
         self.OP = [list(item) for item in self.OP]
+
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
@@ -289,11 +359,15 @@ class SeGMan():
         goal = self.C.frame(self.obj).getPosition()[0:2]
         goal_set = False
         OP = copy.deepcopy(self.OP)
+        pair_path = {}
 
         for _, op in enumerate(OP):
             Ct = ry.Config()
             Ct.addConfigurationCopy(self.C)
-            if self.verbose > 1:
+
+            path = []
+
+            if self.verbose > 0:
                 print(f"Trying: {op}")
             
             for o in op:
@@ -302,23 +376,26 @@ class SeGMan():
             f = False
             if type == 0:
                 if not goal_set:
-                    f, goal = self.find_pick_komo(Ct, self.agent, self.obj, self.verbose, K=2)
+                    f, goal = self.find_pick_komo(Ct, self.agent, self.obj, self.verbose, K=3)
                     if f:
                         goal_set = True
-                        f, _ = self.run_rrt(Ct, goal, [], self.verbose, N=2)
+                        f, path = self.run_rrt(Ct, goal, [], verbose=self.verbose, N=1)
 
                 else:
-                    f, _ = self.run_rrt(Ct, goal, [], self.verbose, N=2)
+                    f, path = self.run_rrt(Ct, goal, [], verbose=self.verbose, N=1)
             else:
-                f = self.find_place_path(Ct, goal, self.verbose, N=2)
+                f, path = self.find_place_path(Ct, goal, self.verbose, N=3)
 
             if not f:
                 self.OP.remove(op)
-                
+            else:
+                pair_path[tuple(op)] = path
+
             if self.verbose > 1:
                 print(f"Is {op} blocking path: {f}")
 
         print(f"The blocking obstacle pairs: {self.OP}")
+        return pair_path
 
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
@@ -388,7 +465,7 @@ class SeGMan():
                         Ct.view(False, "Pick Solution")
                         time.sleep(0.05)
                 Ct.view_close()
-                return True, path[-1]
+                return True, path
         return False, None
     
 # -------------------------------------------------------------------------------------------------------------- #
