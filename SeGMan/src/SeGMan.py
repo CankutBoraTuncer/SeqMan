@@ -11,8 +11,13 @@ import random
 import copy
 import numpy as np
 from frechetdist import frdist
-from sklearn.cluster import DBSCAN
 from collections import defaultdict
+from dataclasses import dataclass
+
+@dataclass
+class Cluster:
+    pairs: list
+    core_pair: list
 
 class SeGMan():
     def __init__(self, C:ry.Config, C_hm:ry.Config, agent:str, obj:str, goal:list, obs_list:list, verbose:int):
@@ -78,10 +83,12 @@ class SeGMan():
 
         # Generate obstacle pair
         self.generate_obs_pair()
-        #self.verbose = 3
-        # Check which pairs are the source of the collision
+
+        # Check which pairs are not relevant with the source of failure
         pair_path = self.find_collision_pair(type)
-        self.path_similarity_index(pair_path)
+
+        # Cluster the pairs based on the path similarity
+        self.cluster_path_pairs(pair_path)
 
         max_iter = 500
         idx = 0
@@ -150,7 +157,7 @@ class SeGMan():
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
-    def path_similarity_index(self, pair_path:dict):  
+    def cluster_path_pairs(self, pair_path:dict):  
         # First make all the arrays the same length
         min_length = min(len(value) for value in pair_path.values())
         pair_path = {key: value[:min_length] for key, value in pair_path.items()}
@@ -199,17 +206,35 @@ class SeGMan():
 
         # Group paths by cluster
         clustered_paths = []
+        most_referenced_keys = []
         for cluster in clusters:
             cluster_dict = {name: pair_path[name] for name in cluster}
             clustered_paths.append(cluster_dict)
 
-        # Output clustered dictionaries
+            # Find the most referenced key in the cluster
+            reference_counts = {name: len(graph[name]) for name in cluster}
+            max_references = max(reference_counts.values())
+            
+            # Get all keys with the maximum reference count
+            candidates = [key for key, count in reference_counts.items() if count == max_references]
+            
+            # Select the key with the fewest characters in the name
+            most_referenced_key = min(candidates, key=len)
+            most_referenced_keys.append(most_referenced_key)
+
+        cluster_list = []
+        # Output clustered dictionaries and most referenced keys
         for i, cluster_dict in enumerate(clustered_paths):
-            print(f"Cluster {i + 1}:")
-            for name, path in cluster_dict.items():
-                print(f"  Obj: {name}")
+            if self.verbose > 0:
+                print(f"Cluster {i + 1}:")
+                for name, _ in cluster_dict.items():
+                    print(f"  Obj: {name}")
+                print(f"  Most Referenced Key: {most_referenced_keys[i]}")
+            cluster = Cluster(pairs=cluster_dict.items(), core_pair=most_referenced_keys[i])
+            cluster_list.append(cluster)
 
         self.C.view(True, "Paurse")
+        return cluster_list
 
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
