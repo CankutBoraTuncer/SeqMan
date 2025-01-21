@@ -15,9 +15,9 @@ from collections import defaultdict
 from dataclasses import dataclass
 
 @dataclass
-class Cluster:
-    pairs: list
-    core_pair: list
+class Pair:
+    pair: list
+    score: dict
 
 class SeGMan():
     def __init__(self, C:ry.Config, C_hm:ry.Config, agent:str, obj:str, goal:list, obs_list:list, verbose:int):
@@ -88,7 +88,9 @@ class SeGMan():
         pair_path = self.find_collision_pair(type)
 
         # Cluster the pairs based on the path similarity
-        self.cluster_path_pairs(pair_path)
+        pair_cluster = self.cluster_path_pairs(pair_path)
+
+
 
         max_iter = 500
         idx = 0
@@ -154,9 +156,23 @@ class SeGMan():
                 prev_node = None
 
         return False
+    
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
+
+    def weight_pairs(self, pair_cluster:list):
+        for cluster in pair_cluster:
+            print("Cluster: ", cluster, "Len: ", len(cluster.pairs))
+        
+        self.C.view(True, "Weighted Pairs")
+
+
+
+# -------------------------------------------------------------------------------------------------------------- #
+# -------------------------------------------------------------------------------------------------------------- #
+# -------------------------------------------------------------------------------------------------------------- #
+
     def cluster_path_pairs(self, pair_path:dict):  
         # First make all the arrays the same length
         min_length = min(len(value) for value in pair_path.values())
@@ -205,36 +221,28 @@ class SeGMan():
                 clusters.append(cluster)
 
         # Group paths by cluster
-        clustered_paths = []
-        most_referenced_keys = []
+        pair_objects = []
         for cluster in clusters:
+            # Calculate cluster score: total size of keys in the cluster
             cluster_dict = {name: pair_path[name] for name in cluster}
-            clustered_paths.append(cluster_dict)
+            cluster_size = 1 / math.sqrt(sum(len(key) for key in cluster_dict.keys()))
 
-            # Find the most referenced key in the cluster
-            reference_counts = {name: len(graph[name]) for name in cluster}
-            max_references = max(reference_counts.values())
-            
-            # Get all keys with the maximum reference count
-            candidates = [key for key, count in reference_counts.items() if count == max_references]
-            
-            # Select the key with the fewest characters in the name
-            most_referenced_key = min(candidates, key=len)
-            most_referenced_keys.append(most_referenced_key)
 
-        cluster_list = []
-        # Output clustered dictionaries and most referenced keys
-        for i, cluster_dict in enumerate(clustered_paths):
-            if self.verbose > 0:
-                print(f"Cluster {i + 1}:")
-                for name, _ in cluster_dict.items():
-                    print(f"  Obj: {name}")
-                print(f"  Most Referenced Key: {most_referenced_keys[i]}")
-            cluster = Cluster(pairs=cluster_dict.items(), core_pair=most_referenced_keys[i])
-            cluster_list.append(cluster)
+            # Calculate pair scores and create Pair objects
+            for name in cluster:
+                pair_size = len(name)
+                num_references = len(graph[name])
+                pair_score = (1 + num_references) / pair_size
+                final_score = pair_score * cluster_size
+                pair_objects.append(Pair(pair=[name], score=final_score))
 
-        self.C.view(True, "Paurse")
-        return cluster_list
+        pair_objects = sorted(pair_objects, key=lambda pair: pair.score, reverse=True)
+
+        # Output Pair objects
+        for pair in pair_objects:
+            print(f"Pair: {pair.pair}, Score: {pair.score:.4f}")
+
+        return pair_objects
 
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
