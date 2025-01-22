@@ -135,12 +135,12 @@ class SeGMan():
                 any_reach = True
 
                 # For the reachable object, generate subgoals
-                Z = self.generate_subgoal(node, o, sample_count=5)
+                Z = self.generate_subgoal(node, o, sample_count=10)
 
                 # For each subgoal try to pick and place
                 for z in Z:
                     C2 = self.make_agent(node.C, o)
-                    P, f1 = self.find_place_path(C2, z, self.verbose, N=2)
+                    P, f1 = self.find_place_path(C2, z, self.verbose, N=5)
                     if f1: 
                         feas, C_n = self.solve_path(node.C, P, self.agent, o, self.FS, self.verbose, K=2)
                         if feas and not self.reject(N, C_n, node.pair):
@@ -160,7 +160,7 @@ class SeGMan():
                 prev_node = None
 
         return False
-    
+
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
@@ -175,7 +175,7 @@ class SeGMan():
             if node.pair == pair:
                     sim_count = 0
                     for obs in pair.objects:
-                        if np.linalg.norm(obs_pos[obs] - node.C.frame(obs).getPosition()[0:2]) < 0.1:
+                        if np.linalg.norm(obs_pos[obs] - node.C.frame(obs).getPosition()[0:2]) < 0.15:
                             sim_count += 1
                     if sim_count == len(pair.objects):
                         if self.verbose > -1:
@@ -239,7 +239,7 @@ class SeGMan():
                 num_references = directed_graph.in_degree(name)  # Count incoming edges
                 pair_score = (1 + num_references) / pair_size
                 core_score = 2 if core_pair == name else 1
-                final_score = core_score * pair_score / normalized_cluster_size
+                final_score = core_score * pair_score * normalized_cluster_size
                 weighted_obstacle_pairs.append(Pair(objects=[*name], weight=final_score)) 
                 if self.verbose > 1:
                     print(f"Pair: {name}, Cluster Size: {cluster_size}, Pair Size: {pair_size}, Num References: {num_references}, Pair Score: {pair_score}, Score: {final_score:.4f}")
@@ -321,7 +321,7 @@ class SeGMan():
         for o in node.pair.objects:
             # The node is root node
             if node.parent == None:
-                gamma = 1e-3
+                gamma = 5e-2
                 scene_score = self.scene_score(Ct, o + "_cam_g")
                 node.init_scene_scores[o] = scene_score
                 node.prev_scene_scores[o] = scene_score
