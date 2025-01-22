@@ -8,16 +8,15 @@ import numpy as np
 import matplotlib.pyplot as plt
 import math
 import random
-import copy
 import numpy as np
 from frechetdist import frdist
-from collections import defaultdict
 from dataclasses import dataclass
+import networkx as nx
 
 @dataclass
 class Pair:
     pair: list
-    score: dict
+    weight: float
 
 class SeGMan():
     def __init__(self, C:ry.Config, C_hm:ry.Config, agent:str, obj:str, goal:list, obs_list:list, verbose:int):
@@ -82,23 +81,21 @@ class SeGMan():
         # Type 0: Agent cannot reach obj, Type: 1 Obj cannot reach goal
 
         # Generate obstacle pair
-        self.generate_obs_pair()
+        obstacle_pair = self.generate_obs_pairs()
 
         # Check which pairs are not relevant with the source of failure
-        pair_path = self.find_collision_pair(type)
+        obstacle_pair_path = self.find_collision_pairs(type, obstacle_pair)
 
         # Cluster the pairs based on the path similarity
-        pair_cluster = self.cluster_path_pairs(pair_path)
-
-
-
+        self.OP = self.weight_collision_pairs(obstacle_pair_path)
+        
         max_iter = 500
         idx = 0
         N = []
-        for op in self.OP:
+        for pair in self.OP:
             C_node = ry.Config()
             C_node.addConfigurationCopy(self.C)
-            root_node = Node(C_node, op, layer=1,score=-1)
+            root_node = Node(C_node, pair=pair, layer=1, score=-1)
             N.append(root_node)
         
         prev_node = None
@@ -161,20 +158,8 @@ class SeGMan():
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
 
-    def weight_pairs(self, pair_cluster:list):
-        for cluster in pair_cluster:
-            print("Cluster: ", cluster, "Len: ", len(cluster.pairs))
-        
-        self.C.view(True, "Weighted Pairs")
-
-
-
-# -------------------------------------------------------------------------------------------------------------- #
-# -------------------------------------------------------------------------------------------------------------- #
-# -------------------------------------------------------------------------------------------------------------- #
-
-    def cluster_path_pairs(self, pair_path:dict):  
-        # First make all the arrays the same length
+    def weight_collision_pairs(self, pair_path:dict):  
+        # Make all arrays the same length
         min_length = min(len(value) for value in pair_path.values())
         pair_path = {key: value[:min_length] for key, value in pair_path.items()}
 
@@ -192,57 +177,66 @@ class SeGMan():
                 distance_matrix[i, j] = distance
                 distance_matrix[j, i] = distance
 
-        # Build the similarity graph
-        graph = defaultdict(list)
+        # Build the directed similarity graph
+        directed_graph = nx.DiGraph()
         for i in range(n):
             distances = distance_matrix[i]
-            # Exclude self-distance (set it to infinity temporarily)
-            distances[i] = np.inf
+            distances[i] = np.inf  # Exclude self-distance
             most_similar_index = np.argmin(distances)
-            # Add edges in both directions to ensure undirected graph
-            graph[path_names[i]].append(path_names[most_similar_index])
-            graph[path_names[most_similar_index]].append(path_names[i])
+            # Add a directed edge from the current node to the most similar node
+            directed_graph.add_edge(path_names[i], path_names[most_similar_index])
 
-        # Perform connected components analysis
-        visited = set()
-        clusters = []
+        # Find weakly connected components (clusters disregarding direction)
+        clusters = list(nx.weakly_connected_components(directed_graph))
 
-        def dfs(node, cluster):
-            visited.add(node)
-            cluster.append(node)
-            for neighbor in graph[node]:
-                if neighbor not in visited:
-                    dfs(neighbor, cluster)
+        # Calculate cluster sizes
+        cluster_sizes = [
+            sum(len(key) for key in cluster) for cluster in clusters
+        ]
+        max_cluster_size = max(cluster_sizes)
+        
+        # Group paths by cluster and compute scores
+        weighted_obstacle_pairs = []
+        for cluster, cluster_size in zip(clusters, cluster_sizes):
+            # Normalize cluster size
+            normalized_cluster_size = cluster_size / max_cluster_size
 
-        for node in path_names:
-            if node not in visited:
-                cluster = []
-                dfs(node, cluster)
-                clusters.append(cluster)
-
-        # Group paths by cluster
-        pair_objects = []
-        for cluster in clusters:
-            # Calculate cluster score: total size of keys in the cluster
-            cluster_dict = {name: pair_path[name] for name in cluster}
-            cluster_size = 1 / math.sqrt(sum(len(key) for key in cluster_dict.keys()))
-
+            # Find the smallest pair in the cluster (the core pair which exists in all pairs)
+            core_pair = min(cluster, key=len)
 
             # Calculate pair scores and create Pair objects
             for name in cluster:
                 pair_size = len(name)
-                num_references = len(graph[name])
+                num_references = directed_graph.in_degree(name)  # Count incoming edges
                 pair_score = (1 + num_references) / pair_size
-                final_score = pair_score * cluster_size
-                pair_objects.append(Pair(pair=[name], score=final_score))
+                core_score = 2 if core_pair == name else 1
+                final_score = core_score * pair_score / normalized_cluster_size
+                weighted_obstacle_pairs.append(Pair(pair=[name], weight=final_score)) 
+                if self.verbose > -1:
+                    print(f"Pair: {name}, Cluster Size: {cluster_size}, Pair Size: {pair_size}, Num References: {num_references}, Pair Score: {pair_score}, Score: {final_score:.4f}")
 
-        pair_objects = sorted(pair_objects, key=lambda pair: pair.score, reverse=True)
+        weighted_obstacle_pairs = sorted(weighted_obstacle_pairs, key=lambda pair: pair.weight, reverse=True)
 
-        # Output Pair objects
-        for pair in pair_objects:
-            print(f"Pair: {pair.pair}, Score: {pair.score:.4f}")
+        if self.verbose > -1:
+            # Create and visualize the directed graph using networkx
+            plt.figure(figsize=(12, 8))
+            pos = nx.spring_layout(directed_graph)  # Layout for better visualization
+            nx.draw(
+                directed_graph, pos, with_labels=True, node_color='lightblue', edge_color='gray',
+                node_size=2000, font_size=10, font_weight='bold', arrows=True
+            )
+            nx.draw_networkx_edges(
+                directed_graph, pos, edge_color='red', arrowstyle='-|>', arrowsize=20
+            )
+            plt.title("Directed Path Similarity Graph")
+            plt.show()
 
-        return pair_objects
+        if self.verbose > 0:
+            # Output Pair objects
+            for pair in weighted_obstacle_pairs:
+                print(f"Pair: {pair.pair}, Score: {pair.weight:.4f}")
+
+        return weighted_obstacle_pairs
 
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
@@ -335,9 +329,8 @@ class SeGMan():
     def is_reachable(self, node:Node, o:str):
         if self.verbose > 0:
             print(f"Checking if object {o} is reachable")
-        if not node.is_reachable:
-            node.is_reachable, _ = self.find_pick_path(node.C, self.agent, o, [], self.verbose, K=5, N=1)  
-        return node.is_reachable
+            is_reachable, _ = self.find_pick_path(node.C, self.agent, o, [], self.verbose, K=3, N=1)  
+        return is_reachable
     
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
@@ -375,23 +368,24 @@ class SeGMan():
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
 
-    def generate_obs_pair(self):
+    def generate_obs_pairs(self):
+        OP = []
         if self.verbose > 0:
             print("Generating obstacle pair")
         for r in range(1, len(self.obs_list) + 1):
-            self.OP.extend(combinations(self.obs_list, r))
-        self.OP = [list(item) for item in self.OP]
+            OP.extend(combinations(self.obs_list, r))
+        OP = [list(item) for item in OP]
+        return OP
 
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
-    def find_collision_pair(self, type:int):
+    def find_collision_pairs(self, type:int, OP:list):
         if self.verbose > 0:
             print("Finding collision pairs")
         
         goal = self.C.frame(self.obj).getPosition()[0:2]
         goal_set = False
-        OP = copy.deepcopy(self.OP)
         pair_path = {}
 
         for _, op in enumerate(OP):
@@ -419,15 +413,14 @@ class SeGMan():
             else:
                 f, path = self.find_place_path(Ct, goal, self.verbose, N=3)
 
-            if not f:
-                self.OP.remove(op)
-            else:
+            if f:
                 pair_path[tuple(op)] = path
 
             if self.verbose > 1:
                 print(f"Is {op} blocking path: {f}")
 
-        print(f"The blocking obstacle pairs: {self.OP}")
+        if self.verbose > 0:
+            print(f"The blocking obstacle pairs: {pair_path.keys()}")
         return pair_path
 
 # -------------------------------------------------------------------------------------------------------------- #
@@ -458,8 +451,9 @@ class SeGMan():
             S = ry.Skeleton()
             S.enableAccumulatedCollisions(True)
             S.addEntry([0, 1], ry.SY.touch, [agent, obj])
-            komo = S.getKomo_path(Ct, 1, 1e-1, 1e1, 1e-1, 1e2) 
-            komo.initRandom()  
+            komo = S.getKomo_path(Ct, 1, 1e-1, 1e1, 1e-1, 1e2)
+            if k != 1: 
+                komo.initRandom()  
             ret = ry.NLP_Solver(komo.nlp(), verbose=0).solve() 
             if verbose > 1:
                 komo.view_play(True, f"Pick Komo Solution: {ret.feasible}")
