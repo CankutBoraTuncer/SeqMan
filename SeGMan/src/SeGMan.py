@@ -173,11 +173,14 @@ class SeGMan():
         
         for node in N:
             if node.pair == pair:
+                    sim_count = 0
                     for obs in pair.objects:
                         if np.linalg.norm(obs_pos[obs] - node.C.frame(obs).getPosition()[0:2]) < 0.1:
-                            if self.verbose > 0:
-                                print("Node REJECTED: ", pair.objects)
-                            return True
+                            sim_count += 1
+                    if sim_count == len(pair.objects):
+                        if self.verbose > -1:
+                            print("Node REJECTED: ", pair.objects)
+                        return True
         return False
     
 # -------------------------------------------------------------------------------------------------------------- #
