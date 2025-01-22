@@ -1,12 +1,5 @@
 Include: <../base-walls-min-heatmap.g>
 
-egoJoint(world){ Q:[-1.3 -1.3 0.1] }
-ego(egoJoint) {
-    shape:ssCylinder, size:[.2 .2 .02], color:[1 1 1], logical:{gripper}, limits: [-4 4 -4 4], sampleUniform:1,
-    joint:transXY, contact: 1
-}
-
-
 goal (floor){ shape:ssBox, Q:"t(-1.5 1.5 .0)", size:[0.2 0.2 .1 .005], color:[1 1 1], contact:0, logical:{table} }
 
 goal_visible (floor) 	{ shape:ssBox, Q:"t(-1.5 1.5 0.1)", size:[0.2 0.2 0.1 0.005], color:[1 1 1] }

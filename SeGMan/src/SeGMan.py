@@ -94,23 +94,29 @@ class SeGMan():
         for pair in self.OP:
             C_node = ry.Config()
             C_node.addConfigurationCopy(self.C)
-            root_node = Node(C_node, pair=pair, layer=1, total_score=-1)
+            root_node = Node(C_node, pair=pair)
             N.append(root_node)
         
         prev_node = None
+        isFirst = True
         while len(N) > 0 and idx < max_iter:
             idx+=1
 
             # Select the best node
-            node = self.select_node(N, prev_node=prev_node)
-            print("Selected Node: " , node)
-
+            node = self.select_node(N, prev_node=prev_node, isFirst=isFirst)
+            isFirst = False
+            if self.verbose > 0:
+                print("Selected Node: " , node)
+            node.C.view(True, str(node))
+            node.C.view_close()
             node.visit += 1
             prev_node = node
 
             # Check if configuration is feasible
             f = False
             if type==0:
+                if self.verbose > 0:
+                    print("Checking if configuration is feasible")
                 f, _ = self.find_pick_path(node.C, self.agent, self.obj, node.FS, self.verbose, K=1, N=1)
                 if f:
                     node.C.view(True, "SOLUTION")
@@ -123,13 +129,13 @@ class SeGMan():
             
             # Check which objects are reachable in the pair
             any_reach = False
-            for o in node.op:
+            for o in node.pair.objects:
                 if not self.is_reachable(node, o):
                     continue
                 any_reach = True
 
                 # For the reachable object, generate subgoals
-                Z = self.generate_subgoal(node, o, sample_count=3)
+                Z = self.generate_subgoal(node, o, sample_count=5)
 
                 # For each subgoal try to pick and place
                 for z in Z:
@@ -137,20 +143,41 @@ class SeGMan():
                     P, f1 = self.find_place_path(C2, z, self.verbose, N=2)
                     if f1: 
                         feas, C_n = self.solve_path(node.C, P, self.agent, o, self.FS, self.verbose, K=2)
-                        if feas:
+                        if feas and not self.reject(N, C_n, node.pair):
                             # Calculate the scene score
-                            node_score = self.node_score(C_n, node.layer+1, node.op, 1, False)
-                            new_node = Node(C=C_n, op=node.op, layer=node.layer+1, FS=node.FS, score=node_score, is_reachable=True)
-                            
-                            #C_n.view(True, "New Node")
+                            new_node = Node(C=C_n, pair=node.pair, parent=node, layer=node.layer+1, FS=node.FS, init_scene_scores=node.init_scene_scores, prev_scene_scores=node.prev_scene_scores)
+                            self.node_score(new_node)
+
+                            if self.verbose > 0:
+                                C_n.view(True, "New Node")
+
                             N.append(new_node)
                             
             if not any_reach:
                 if self.verbose > 0:
-                    print("Node REMOVED: ", node.op)
+                    print("Node REMOVED: ", node.pair.objects)
                 N.remove(node)
                 prev_node = None
 
+        return False
+    
+# -------------------------------------------------------------------------------------------------------------- #
+# -------------------------------------------------------------------------------------------------------------- #
+# -------------------------------------------------------------------------------------------------------------- #
+
+    def reject(self, N:list, C:ry.Config, pair:Pair):
+
+        obs_pos = {}
+        for obs in pair.objects:
+            obs_pos[obs] = C.frame(obs).getPosition()[0:2]
+        
+        for node in N:
+            if node.pair == pair:
+                    for obs in pair.objects:
+                        if np.linalg.norm(obs_pos[obs] - node.C.frame(obs).getPosition()[0:2]) < 0.1:
+                            if self.verbose > 0:
+                                print("Node REJECTED: ", pair.objects)
+                            return True
         return False
     
 # -------------------------------------------------------------------------------------------------------------- #
@@ -241,7 +268,7 @@ class SeGMan():
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
 
-    def select_node(self, N:list, prev_node:Node):
+    def select_node(self, N:list, prev_node:Node, isFirst:bool=False):
         if self.verbose > 0:
             print("Selecting the node")
 
@@ -249,13 +276,10 @@ class SeGMan():
         best_node = None
 
         for node in N:
-            if self.verbose > 0:
-                if prev_node == None :
-                    self.node_score(node)
-                    print("Root Node: ", node)
-                elif node == prev_node:
-                    self.node_score(node)
-                    print("Tried Node: ", node)
+            if isFirst:
+                self.node_score(node)
+            elif node == prev_node:
+                self.node_score(node)
                 
             if node.total_score > best_score:
                 best_node = node
@@ -276,7 +300,8 @@ class SeGMan():
         Ct.addConfigurationCopy(self.C_hm)
 
         c0 = 5
-        gamma = 0.5
+        c1 = 1e-1
+        gamma = 0.9
 
         for o in node.pair.objects:
             Ct.frame(o).setPosition(node.C.frame(o).getPosition())
@@ -289,31 +314,44 @@ class SeGMan():
 
         global_scene_score = 0
         temporal_scene_score = 0
+        
         for o in node.pair.objects:
-            scene_score = self.scene_score(Ct, o + "_cam_g")
+            # The node is root node
             if node.parent == None:
-                gamma = 0
+                gamma = 1e-3
+                scene_score = self.scene_score(Ct, o + "_cam_g")
                 node.init_scene_scores[o] = scene_score
                 node.prev_scene_scores[o] = scene_score
                 global_scene_score += node.init_scene_scores[o]
                 temporal_scene_score += 0
-
             else:
-                parent_visit = node.parent.visit
-                global_scene_score += scene_score - node.init_scene_scores[o]
-                temporal_scene_score += scene_score - node.prev_scene_scores[o]
-                node.prev_scene_scores[o] = scene_score
-                
+                # New node
+                if node.total_score == float('-inf'):
+                    scene_score = self.scene_score(Ct, o + "_cam_g")
+                    parent_visit = node.parent.visit
+                    global_scene_score += scene_score - node.init_scene_scores[o]
+                    temporal_scene_score += scene_score - node.prev_scene_scores[o]
+                    node.prev_scene_scores[o] = scene_score
 
-            weighted_scene_score = ((1-gamma) * global_scene_score + gamma * temporal_scene_score) / (300*300*3)
-            exploitation = (weighted_scene_score / visit) * node.pair.weight
-            exploration  = c0 / (node.layer) * math.sqrt(math.log(1+parent_visit) / visit)
-            total_node_score = exploitation + exploration
-            
-            if self.verbose > 1:
-                print(f"Exploitation: {exploitation}, Exploration: {exploration}, Total Score: {total_node_score}")
+        if node.total_score != float('-inf'):
+            global_scene_score = node.global_scene_score
+            temporal_scene_score = node.temporal_scene_score
+        else:
+            node.global_scene_score = global_scene_score
+            node.temporal_scene_score = temporal_scene_score
 
+        weighted_scene_score = ((1-gamma) * temporal_scene_score + gamma * global_scene_score) / (300*300*3*c1)
+        exploitation = weighted_scene_score * node.pair.weight
+        exploration  = c0 * math.sqrt(math.log(1+parent_visit) / visit)
+        total_node_score = exploitation + exploration
+        
         node.total_score = total_node_score
+        
+        if self.verbose > 0:
+            print("Global Scene Score: ", global_scene_score, "Temporal Scene Score: ", temporal_scene_score)
+            print(f"Exploitation: {exploitation}, Exploration: {exploration}, Total Score: {total_node_score}")
+            print("Scored Node: ", node)
+
 
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
@@ -370,10 +408,9 @@ class SeGMan():
     def is_reachable(self, node:Node, o:str):
         if self.verbose > 0:
             print(f"Checking if object {o} is reachable")
-            is_reachable, _ = self.find_pick_path(node.C, self.agent, o, [], self.verbose, K=3, N=1)  
+        is_reachable, _ = self.find_pick_path(node.C, self.agent, o, [], self.verbose, K=3, N=1)  
         return is_reachable
 
-    
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #

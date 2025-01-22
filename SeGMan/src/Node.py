@@ -2,7 +2,7 @@ import robotic as ry
 
 
 class Node():
-    def __init__(self, C:ry.Config, pair=None, parent:"Node"=None, layer:int=0, FS:list=[], total_score:float=0.0, prev_scene_scores:dict={}, init_scene_scores:dict={}):
+    def __init__(self, C:ry.Config, pair, parent:"Node"=None, layer:int=1, FS:list=[], total_score:float=float("-inf"), prev_scene_scores:dict={}, init_scene_scores:dict={}):
         self.C = ry.Config()
         self.C.addConfigurationCopy(C)
         self.pair = pair
@@ -12,6 +12,8 @@ class Node():
         self.total_score = total_score
         self.prev_scene_scores = prev_scene_scores
         self.init_scene_scores = init_scene_scores
+        self.global_scene_score = 0
+        self.temporal_scene_score = 0
         self.parent = parent
 
     def __str__(self):
