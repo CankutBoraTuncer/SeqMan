@@ -105,10 +105,12 @@ class SeGMan():
             # Select the best node
             node = self.select_node(N, prev_node=prev_node, isFirst=isFirst)
             isFirst = False
-            if self.verbose > 0:
+
+            if self.verbose > 1:
                 print("Selected Node: " , node)
-            node.C.view(True, str(node))
-            node.C.view_close()
+                node.C.view(True, str(node))
+                node.C.view_close()
+
             node.visit += 1
             prev_node = node
 
@@ -119,8 +121,7 @@ class SeGMan():
                     print("Checking if configuration is feasible")
                 f, _ = self.find_pick_path(node.C, self.agent, self.obj, node.FS, self.verbose, K=1, N=1)
                 if f:
-                    node.C.view(True, "SOLUTION")
-                    self.display_solution()
+                    self.display_solution(node.FS)
                     return node.FS, True
             else:
                 P, f = self.find_place_path(node.C, node.C.frame(self.obj).getPosition()[0:2], self.verbose, N=2)
@@ -142,7 +143,7 @@ class SeGMan():
                     C2 = self.make_agent(node.C, o)
                     P, f1 = self.find_place_path(C2, z, self.verbose, N=5)
                     if f1: 
-                        feas, C_n = self.solve_path(node.C, P, self.agent, o, self.FS, self.verbose, K=2)
+                        feas, C_n = self.solve_path(node.C, P, self.agent, o, node.FS, self.verbose, K=2)
                         if feas and not self.reject(N, C_n, node.pair):
                             # Calculate the scene score
                             new_node = Node(C=C_n, pair=node.pair, parent=node, layer=node.layer+1, FS=node.FS, init_scene_scores=node.init_scene_scores, prev_scene_scores=node.prev_scene_scores)
@@ -175,7 +176,7 @@ class SeGMan():
             if node.pair == pair:
                     sim_count = 0
                     for obs in pair.objects:
-                        if np.linalg.norm(obs_pos[obs] - node.C.frame(obs).getPosition()[0:2]) < 0.15:
+                        if np.linalg.norm(obs_pos[obs] - node.C.frame(obs).getPosition()[0:2]) < 0.10:
                             sim_count += 1
                     if sim_count == len(pair.objects):
                         if self.verbose > -1:
@@ -655,11 +656,17 @@ class SeGMan():
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
 
-    def display_solution(self):
-        self.C.view(True, "Solution")
-        for fs in self.FS:
-            self.C.setFrameState(fs)
-            self.C.view(False, "Solution")
+    def display_solution(self, FS:list=None):
+        Ct = ry.Config()
+        Ct.addConfigurationCopy(self.C)
+
+        if FS == None:
+            FS = self.FS
+
+        Ct.view(True, "Solution")
+        for fs in FS:
+            Ct.setFrameState(fs)
+            Ct.view(False, "Solution")
             time.sleep(0.005)
 
 # -------------------------------------------------------------------------------------------------------------- #
