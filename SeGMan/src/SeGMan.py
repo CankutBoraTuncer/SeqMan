@@ -15,7 +15,7 @@ import networkx as nx
 
 @dataclass
 class Pair:
-    pair: list
+    objects: list
     weight: float
 
 class SeGMan():
@@ -29,7 +29,6 @@ class SeGMan():
         self.verbose = verbose
         self.FS = []
         self.OP = []
-        self.root_scene_score = {}
 
     def run(self):
         found = False
@@ -95,7 +94,7 @@ class SeGMan():
         for pair in self.OP:
             C_node = ry.Config()
             C_node.addConfigurationCopy(self.C)
-            root_node = Node(C_node, pair=pair, layer=1, score=-1)
+            root_node = Node(C_node, pair=pair, layer=1, total_score=-1)
             N.append(root_node)
         
         prev_node = None
@@ -103,7 +102,7 @@ class SeGMan():
             idx+=1
 
             # Select the best node
-            node = self.select_node(N, prev_node)
+            node = self.select_node(N, prev_node=prev_node)
             print("Selected Node: " , node)
 
             node.visit += 1
@@ -194,7 +193,7 @@ class SeGMan():
             sum(len(key) for key in cluster) for cluster in clusters
         ]
         max_cluster_size = max(cluster_sizes)
-        
+
         # Group paths by cluster and compute scores
         weighted_obstacle_pairs = []
         for cluster, cluster_size in zip(clusters, cluster_sizes):
@@ -211,13 +210,13 @@ class SeGMan():
                 pair_score = (1 + num_references) / pair_size
                 core_score = 2 if core_pair == name else 1
                 final_score = core_score * pair_score / normalized_cluster_size
-                weighted_obstacle_pairs.append(Pair(pair=[name], weight=final_score)) 
-                if self.verbose > -1:
+                weighted_obstacle_pairs.append(Pair(objects=[*name], weight=final_score)) 
+                if self.verbose > 1:
                     print(f"Pair: {name}, Cluster Size: {cluster_size}, Pair Size: {pair_size}, Num References: {num_references}, Pair Score: {pair_score}, Score: {final_score:.4f}")
 
         weighted_obstacle_pairs = sorted(weighted_obstacle_pairs, key=lambda pair: pair.weight, reverse=True)
 
-        if self.verbose > -1:
+        if self.verbose > 1:
             # Create and visualize the directed graph using networkx
             plt.figure(figsize=(12, 8))
             pos = nx.spring_layout(directed_graph)  # Layout for better visualization
@@ -234,7 +233,7 @@ class SeGMan():
         if self.verbose > 0:
             # Output Pair objects
             for pair in weighted_obstacle_pairs:
-                print(f"Pair: {pair.pair}, Score: {pair.weight:.4f}")
+                print(f"Pair: {pair.objects}, Score: {pair.weight:.4f}")
 
         return weighted_obstacle_pairs
 
@@ -242,38 +241,80 @@ class SeGMan():
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
 
-    def node_score(self, C:ry.Config, layer:int, OP:list, visit:int, isFirst:bool=False):
+    def select_node(self, N:list, prev_node:Node):
+        if self.verbose > 0:
+            print("Selecting the node")
+
+        best_score = float('-inf')
+        best_node = None
+
+        for node in N:
+            if self.verbose > 0:
+                if prev_node == None :
+                    self.node_score(node)
+                    print("Root Node: ", node)
+                elif node == prev_node:
+                    self.node_score(node)
+                    print("Tried Node: ", node)
+                
+            if node.total_score > best_score:
+                best_node = node
+                best_score = node.total_score
+            
+        #if prev_node != None and all(element in best_node.pair for element in prev_node.pair):
+        #    N.append(Node(prev_node.C, best_node.pair, layer=best_node.layer, FS=prev_node.FS, score=best_node.score, is_reachable=best_node.is_reachable))
+        #    prev.C.view(True, "New Node")
+
+        return best_node
+    
+# -------------------------------------------------------------------------------------------------------------- #
+# -------------------------------------------------------------------------------------------------------------- #
+# -------------------------------------------------------------------------------------------------------------- #
+
+    def node_score(self, node:Node):
         Ct = ry.Config()
         Ct.addConfigurationCopy(self.C_hm)
 
-        c0 = 20
-        c1 = 20
-        b  = 50
-        for op in OP:
-            Ct.frame(op).setPosition(C.frame(op).getPosition())
+        c0 = 5
+        gamma = 0.5
+
+        for o in node.pair.objects:
+            Ct.frame(o).setPosition(node.C.frame(o).getPosition())
             
         if self.verbose > 1:
             Ct.view(True, "Changed heatmap")
 
-        obj_score   = len(OP)
-        layer_score = layer
-        visit_score = visit
+        visit = node.visit
+        parent_visit = 1
 
-        if not isFirst:
-            scene_score_dif= 0
-            for o in OP:
-                scene_score = self.scene_score(Ct, o + "_cam_g")
-                scene_score_dif += scene_score - self.root_scene_score[o]
-                print(f"Scene score dif {scene_score_dif}")
+        global_scene_score = 0
+        temporal_scene_score = 0
+        for o in node.pair.objects:
+            scene_score = self.scene_score(Ct, o + "_cam_g")
+            if node.parent == None:
+                gamma = 0
+                node.init_scene_scores[o] = scene_score
+                node.prev_scene_scores[o] = scene_score
+                global_scene_score += node.init_scene_scores[o]
+                temporal_scene_score += 0
 
-            node_score = (b + math.copysign(1, scene_score_dif) * math.sqrt(abs(scene_score_dif))) / layer_score + c1 * math.sqrt(1/(math.log(1+obj_score))) / visit_score
-        else:
-            for o in OP:
-                if not self.root_scene_score.get(o):
-                    self.root_scene_score[o] = self.scene_score(Ct, o + "_cam_g")
-            node_score = b + c0 * math.sqrt(1/(math.log(1+obj_score)))
-        return node_score
-    
+            else:
+                parent_visit = node.parent.visit
+                global_scene_score += scene_score - node.init_scene_scores[o]
+                temporal_scene_score += scene_score - node.prev_scene_scores[o]
+                node.prev_scene_scores[o] = scene_score
+                
+
+            weighted_scene_score = ((1-gamma) * global_scene_score + gamma * temporal_scene_score) / (300*300*3)
+            exploitation = (weighted_scene_score / visit) * node.pair.weight
+            exploration  = c0 / (node.layer) * math.sqrt(math.log(1+parent_visit) / visit)
+            total_node_score = exploitation + exploration
+            
+            if self.verbose > 1:
+                print(f"Exploitation: {exploitation}, Exploration: {exploration}, Total Score: {total_node_score}")
+
+        node.total_score = total_node_score
+
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
@@ -331,38 +372,7 @@ class SeGMan():
             print(f"Checking if object {o} is reachable")
             is_reachable, _ = self.find_pick_path(node.C, self.agent, o, [], self.verbose, K=3, N=1)  
         return is_reachable
-    
-# -------------------------------------------------------------------------------------------------------------- #
-# -------------------------------------------------------------------------------------------------------------- #
-# -------------------------------------------------------------------------------------------------------------- #
 
-    def select_node(self, N:list, prev:Node):
-        if self.verbose > 0:
-            print("Selecting the node")
-        best_score = float('-inf')
-        best_node = None
-
-        for node in N:
-
-            if node.score == -1:
-                node_score = self.node_score(node.C, node.layer, node.op, node.visit, True)
-                node.score = node_score
-                print("Root Node: ", node)
-            else:
-                if node == prev:
-                    node_score = self.node_score(node.C, node.layer, node.op, node.visit, False)
-                    node.score = node_score
-                    print("Tried Node: ", node)
-                
-            if node.score > best_score:
-                best_node = node
-                best_score = node.score
-            
-        if prev != None and prev.op != None and len(best_node.op) > len(prev.op) and all(element in best_node.op for element in prev.op):
-            N.append(Node(prev.C, best_node.op, layer=best_node.layer, FS=prev.FS, score=best_node.score, is_reachable=best_node.is_reachable))
-            prev.C.view(True, "New Node")
-
-        return best_node
     
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
