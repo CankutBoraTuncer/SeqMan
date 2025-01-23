@@ -1,5 +1,5 @@
 import robotic as ry
-from utils import (select_node, solve, sub_solve, reachable, propose_subgoals, rej, trace_back, overlay_grid_over_image)
+from utils import (select_node, solve, sub_solve, reachable, propose_subgoals, rej, trace_back, overlay_image_over_config)
 from Node import Node
 import matplotlib.pyplot as plt
 
