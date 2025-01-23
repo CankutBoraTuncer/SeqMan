@@ -388,11 +388,12 @@ def encode_image(image_path):
         return base64.b64encode(image_file.read()).decode("utf-8")
 
 
-def overlay_grid_over_image(C0:ry.Config, camera_name:str="camera-top", camera_path:str="config/camera-top.g"):
+def overlay_grid_over_image(C0:ry.Config, grid_size:int, camera_name:str="camera-top", camera_path:str="config/camera-top.g"):
     config = ry.Config()
     config.addConfigurationCopy(C0)
     print(camera_path)
     config.addFile(camera_path)
+    config.view()
     config.view_setCamera(config.getFrame(camera_name))
     config.view(True)
     config.view_savePng("tmp/tmp")
@@ -404,7 +405,6 @@ def overlay_grid_over_image(C0:ry.Config, camera_name:str="camera-top", camera_p
     ax = fig.add_axes([0, 0, 1, 1])
     ax.imshow(img)
     
-    grid_size = 48
     ax.set_xticks(np.arange((img.shape[1]%grid_size)/2, img.shape[1], grid_size))
     ax.set_yticks(np.arange((img.shape[0]%grid_size)/2, img.shape[0], grid_size))
     ax.grid(color='black', linestyle='-', linewidth=0.5)
