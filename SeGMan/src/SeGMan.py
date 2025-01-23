@@ -43,6 +43,7 @@ class SeGMan():
             # If it is not possible to go check if there is an obstacle that can be removed
             if not f: 
                 # Remove obstacle
+                
                 fs, FS = self.remove_obstacle(0)
                 if not fs:
                     return
@@ -81,23 +82,25 @@ class SeGMan():
 
     def remove_obstacle(self, type:int):
         # Type 0: Agent cannot reach obj, Type: 1 Obj cannot reach goal
-
+        tic = time.time()
         # Generate obstacle pair
         obstacle_pair = self.generate_obs_pairs()
 
         # Check which pairs are not relevant with the source of failure
         obstacle_pair_path = self.find_collision_pairs(type, obstacle_pair)
 
+        self.verbose = 2
         # Cluster the pairs based on the path similarity
         self.OP = self.weight_collision_pairs(obstacle_pair_path)
-        
+        self.verbose = 1
+
         max_iter = 500
         idx = 0
         N = []
         for pair in self.OP:
             C_node = ry.Config()
             C_node.addConfigurationCopy(self.C)
-            root_node = Node(C_node, pair=pair)
+            root_node = Node(C_node, pair=pair.objects)
             N.append(root_node)
         
         prev_node = None
@@ -109,10 +112,11 @@ class SeGMan():
             node = self.select_node(N, prev_node=prev_node, isFirst=isFirst)
             isFirst = False
 
-            if self.verbose > 1:
+            if self.verbose > 0:
                 print("Selected Node: " , node)
-                node.C.view(True, str(node))
-                node.C.view_close()
+                if self.verbose > 2:
+                    node.C.view(True, str(node))
+                    node.C.view_close()
 
             node.visit += 1
             prev_node = node
@@ -124,6 +128,8 @@ class SeGMan():
                     print("Checking if configuration is feasible")
                 f, _ = self.find_pick_path(node.C, self.agent, self.obj, node.FS, self.verbose, K=1, N=1)
                 if f:
+                    tac = time.time()
+                    print("Time: ", tac-tic)
                     self.display_solution(node.FS)
                     return True, node.FS 
             else:
@@ -133,11 +139,11 @@ class SeGMan():
             
             # Check which objects are reachable in the pair
             any_reach = False
-            for o in node.pair.objects:
+            for o in node.pair:
                 if not self.is_reachable(node, o):
                     continue
                 any_reach = True
-                print("Trying OBJECT: ", o)
+                
 
                 # For the reachable object, generate subgoals
                 Z = self.generate_subgoal(node, o, sample_count=10)
@@ -157,7 +163,7 @@ class SeGMan():
                             
             if not any_reach:
                 if self.verbose > 0:
-                    print("Node REMOVED: ", node.pair.objects)
+                    print("Node REMOVED: ", node.pair)
                 N.remove(node)
                 prev_node = None
 
@@ -198,18 +204,18 @@ class SeGMan():
     def reject(self, N:list, C:ry.Config, node:Node):
         obs_pos = {}
         pair = node.pair
-        for obs in pair.objects:
+        for obs in pair:
             obs_pos[obs] = C.frame(obs).getPosition()[0:2]
         
         for n in N:
             if n.pair == pair and node!=n:
                     sim_count = 0
-                    for obs in pair.objects:
+                    for obs in pair:
                         if np.linalg.norm(obs_pos[obs] - n.C.frame(obs).getPosition()[0:2]) < 0.10:
                             sim_count += 1
-                    if sim_count == len(pair.objects):
-                        if self.verbose > -1:
-                            print("Node REJECTED: ", pair.objects, np.linalg.norm(obs_pos[obs] - n.C.frame(obs).getPosition()[0:2]))
+                    if sim_count == len(pair):
+                        if self.verbose > 1:
+                            print("Node REJECTED: ", pair, np.linalg.norm(obs_pos[obs] - n.C.frame(obs).getPosition()[0:2]))
                         return True
         return False
     
@@ -345,10 +351,11 @@ class SeGMan():
         Ct.addConfigurationCopy(self.C_hm)
 
         c0 = 5
-        c1 = 1e-2
+        c1 = 3e-2
         gamma = 0.3
+        weight_discount = 0.95
 
-        for o in node.pair.objects:
+        for o in node.pair:
             Ct.frame(o).setPosition(node.C.frame(o).getPosition())
             
         if self.verbose > 1:
@@ -360,10 +367,10 @@ class SeGMan():
         global_scene_score = 0
         temporal_scene_score = 0
         
-        for o in node.pair.objects:
+        for o in node.pair:
             # The node is root node
             if node.parent == None:
-                c1 = 1
+                c1 = 2e-2
                 if self.obj_init_scene_score.get(o) == None:
                     scene_score = self.scene_score(Ct, o + "_cam_g")
                     self.obj_init_scene_score[o] = scene_score
@@ -372,7 +379,7 @@ class SeGMan():
                     
                 node.init_scene_scores[o] = scene_score
                 node.prev_scene_scores[o] = scene_score
-                global_scene_score += node.init_scene_scores[o]
+                global_scene_score += scene_score
                 temporal_scene_score += 0
             else:
                 # New node
@@ -383,25 +390,36 @@ class SeGMan():
                     temporal_scene_score += scene_score - node.prev_scene_scores[o]
                     node.prev_scene_scores[o] = scene_score
 
+        node_weight = 1
+        cur_pair = None
+        for p in self.OP:
+            if p.objects == node.pair:
+                cur_pair = p
+                node_weight = p.weight
+
         if node.total_score != float('-inf'):
             global_scene_score = node.global_scene_score
             temporal_scene_score = node.temporal_scene_score
+            if cur_pair != None:
+                cur_pair.weight *= weight_discount
         else:
             node.global_scene_score = global_scene_score
             node.temporal_scene_score = temporal_scene_score
 
         weighted_scene_score = ((1-gamma) * temporal_scene_score + gamma * global_scene_score) / (30*30*3*c1)
-        exploitation = weighted_scene_score * node.pair.weight
+
+        exploitation = weighted_scene_score * node_weight
         exploration  = c0 * math.sqrt(math.log(1+parent_visit) / visit)
         total_node_score = exploitation + exploration
         
         node.total_score = total_node_score
         
         if self.verbose > 0:
-            print("Global Scene Score: ", global_scene_score, "Temporal Scene Score: ", temporal_scene_score)
-            print(f"Exploitation: {exploitation}, Exploration: {exploration}, Total Score: {total_node_score}")
             print("Scored Node: ", node)
-
+            if self.verbose > 1:
+                print("Global Scene Score: ", global_scene_score, "Temporal Scene Score: ", temporal_scene_score)
+                print(f"Exploitation: {exploitation}, Exploration: {exploration}, Total Score: {total_node_score}")
+            
 
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
@@ -458,7 +476,9 @@ class SeGMan():
     def is_reachable(self, node:Node, o:str):
         if self.verbose > 0:
             print(f"Checking if object {o} is reachable")
-        is_reachable, _ = self.find_pick_path(node.C, self.agent, o, [], self.verbose, K=3, N=1)  
+        is_reachable, _ = self.find_pick_path(node.C, self.agent, o, [], self.verbose, K=2, N=1)  
+        if is_reachable and self.verbose > 0:
+            print(f"Object {o} is reachable")
         return is_reachable
 
 # -------------------------------------------------------------------------------------------------------------- #
@@ -715,7 +735,7 @@ class SeGMan():
         for fs in FS:
             Ct.setFrameState(fs)
             Ct.view(False, "Solution")
-            time.sleep(0.005)
+            time.sleep(0.5)
 
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
