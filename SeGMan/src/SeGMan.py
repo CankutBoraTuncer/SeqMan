@@ -31,6 +31,7 @@ class SeGMan():
         self.verbose = verbose
         self.FS = []
         self.OP = []
+        self.obj_init_scene_score = {}
 
     def run(self):
         found = False
@@ -121,7 +122,7 @@ class SeGMan():
             if type==0:
                 if self.verbose > 0:
                     print("Checking if configuration is feasible")
-                f, _ = self.find_pick_path(node.C, self.agent, self.obj, node.FS, 2, K=1, N=1)
+                f, _ = self.find_pick_path(node.C, self.agent, self.obj, node.FS, self.verbose, K=1, N=1)
                 if f:
                     self.display_solution(node.FS)
                     return True, node.FS 
@@ -142,20 +143,17 @@ class SeGMan():
                 Z = self.generate_subgoal(node, o, sample_count=10)
 
                 # For each subgoal try to pick and place
-                C2 = self.make_agent(node.C, o)
-                P, f1 = self.find_place_path(C2, z, self.verbose, N=3)
-                if f1:
+                for z in Z:
                     fs = copy.deepcopy(node.FS)
-                    for z in Z:
-                        feas, C_n = self.solve_path(node.C, P, self.agent, o, fs, self.verbose, K=2)
-                        if feas and not self.reject(N, C_n, node.pair):
-                            # Calculate the scene score
-                            new_node = Node(C=C_n, pair=node.pair, parent=node, layer=node.layer+1, FS=fs, init_scene_scores=node.init_scene_scores, prev_scene_scores=node.prev_scene_scores)
-                            self.node_score(new_node)
+                    feas, C_n = self.skeleton_solve(node.C, self.agent, o, z, fs, self.verbose)
+                    if feas and not self.reject(N, C_n, node):
+                        # Calculate the scene score
+                        new_node = Node(C=C_n, pair=node.pair, parent=node, layer=node.layer+1, FS=fs, init_scene_scores=node.init_scene_scores, prev_scene_scores=node.prev_scene_scores)
+                        self.node_score(new_node)
 
-                            if self.verbose > 1:
-                                C_n.view(True, "New Node")
-                            N.append(new_node)
+                        if self.verbose > 1:
+                            C_n.view(True, "New Node")
+                        N.append(new_node)
                             
             if not any_reach:
                 if self.verbose > 0:
@@ -169,21 +167,49 @@ class SeGMan():
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
 
-    def reject(self, N:list, C:ry.Config, pair:Pair):
+    def skeleton_solve(self, C:ry.Config, agent:str, obj:str, goal:list, FS:list, verbose:int):
+        Ct = ry.Config()
+        Ct.addConfigurationCopy(C)
+        Ct.addFrame("subgoal", "world", "shape:ssBox, size:[0.2 0.2 .05 .005], color:[1. .3 .3 0.9], contact:0, logical:{table}").setPosition([*goal[0:2], 0.0])                        # Add goal frame
 
+        S = ry.Skeleton()
+        S.enableAccumulatedCollisions(True)
+
+        S.addEntry([0, -1], ry.SY.touch, [agent, obj])
+        S.addEntry([0.5, -1], ry.SY.stable, [agent, obj])
+        S.addEntry([0.8, -1], ry.SY.above, [obj, "subgoal"])
+
+        komo = S.getKomo_path(Ct, 30, 1, 0.1, 0.1, 10)
+        ret = ry.NLP_Solver(komo.nlp(), verbose=0).solve()              # Solve
+        Ct.delFrame("subgoal")
+        if ret.eq < 1:
+            if verbose > 1:
+                komo.view_play(True, "Solution")
+                komo.view_close()
+            FS.append(komo.getPathFrames())
+            Ct.setFrameState(komo.getPathFrames()[-1])
+            return True, Ct
+        return False, None
+# -------------------------------------------------------------------------------------------------------------- #
+# -------------------------------------------------------------------------------------------------------------- #
+# -------------------------------------------------------------------------------------------------------------- #
+
+
+    def reject(self, N:list, C:ry.Config, node:Node):
         obs_pos = {}
+        pair = node.pair
         for obs in pair.objects:
             obs_pos[obs] = C.frame(obs).getPosition()[0:2]
         
-        for node in N:
-            if node.pair == pair:
+        for n in N:
+            if n.pair == pair and node!=n:
                     sim_count = 0
                     for obs in pair.objects:
-                        if np.linalg.norm(obs_pos[obs] - node.C.frame(obs).getPosition()[0:2]) < 0.10:
+                        if np.linalg.norm(obs_pos[obs] - n.C.frame(obs).getPosition()[0:2]) < 0.10:
                             sim_count += 1
                     if sim_count == len(pair.objects):
                         if self.verbose > -1:
-                            print("Node REJECTED: ", pair.objects)
+                            print("Node REJECTED: ", pair.objects, np.linalg.norm(obs_pos[obs] - n.C.frame(obs).getPosition()[0:2]))
                         return True
         return False
     
@@ -319,7 +345,7 @@ class SeGMan():
         Ct.addConfigurationCopy(self.C_hm)
 
         c0 = 5
-        c1 = 1
+        c1 = 1e-2
         gamma = 0.3
 
         for o in node.pair.objects:
@@ -337,8 +363,13 @@ class SeGMan():
         for o in node.pair.objects:
             # The node is root node
             if node.parent == None:
-                gamma = 5e-2
-                scene_score = self.scene_score(Ct, o + "_cam_g")
+                c1 = 1
+                if self.obj_init_scene_score.get(o) == None:
+                    scene_score = self.scene_score(Ct, o + "_cam_g")
+                    self.obj_init_scene_score[o] = scene_score
+                else:
+                    scene_score = self.obj_init_scene_score[o]
+                    
                 node.init_scene_scores[o] = scene_score
                 node.prev_scene_scores[o] = scene_score
                 global_scene_score += node.init_scene_scores[o]
@@ -633,7 +664,7 @@ class SeGMan():
 # -------------------------------------------------------------------------------------------------------------- #
 
     def scene_score(self, C:ry.Config, cam_frame:str):
-        img = SeGMan.get_image(C, cam_frame, 2)
+        img = SeGMan.get_image(C, cam_frame, self.verbose)
         scene_score = 0
         for r in img:
             for rgb in r:
