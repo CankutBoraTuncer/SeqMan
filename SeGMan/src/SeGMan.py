@@ -12,6 +12,8 @@ import numpy as np
 from frechetdist import frdist
 from dataclasses import dataclass
 import networkx as nx
+from dtaidistance import dtw
+import copy 
 
 @dataclass
 class Pair:
@@ -35,18 +37,18 @@ class SeGMan():
         C2 = self.make_agent(self.C, self.obj)
         while not found:
             # Find a feasible pick configuration and path
-            f, js = self.find_pick_path(self.C, self.agent, self.obj, self.FS, self.verbose, 1, 1)
+            f, _ = self.find_pick_path(self.C, self.agent, self.obj, self.FS, self.verbose, 1, 1)
             
             # If it is not possible to go check if there is an obstacle that can be removed
             if not f: 
                 # Remove obstacle
-                fs = self.remove_obstacle(0)
+                fs, FS = self.remove_obstacle(0)
                 if not fs:
                     return
                 else:
-                    continue
+                    self.FS.append(FS)
             
-            self.C.setJointState(js[-1])
+            self.C.setFrameState(self.FS[-1])
             self.C.view(True, "True")
 
             # Check for object path
@@ -119,14 +121,14 @@ class SeGMan():
             if type==0:
                 if self.verbose > 0:
                     print("Checking if configuration is feasible")
-                f, _ = self.find_pick_path(node.C, self.agent, self.obj, node.FS, self.verbose, K=1, N=1)
+                f, _ = self.find_pick_path(node.C, self.agent, self.obj, node.FS, 2, K=1, N=1)
                 if f:
                     self.display_solution(node.FS)
-                    return node.FS, True
+                    return True, node.FS 
             else:
-                P, f = self.find_place_path(node.C, node.C.frame(self.obj).getPosition()[0:2], self.verbose, N=2)
+                f, P  = self.find_place_path(node.C, node.C.frame(self.obj).getPosition()[0:2], self.verbose, N=2)
                 if f:
-                    return P, True    
+                    return True, P     
             
             # Check which objects are reachable in the pair
             any_reach = False
@@ -134,24 +136,25 @@ class SeGMan():
                 if not self.is_reachable(node, o):
                     continue
                 any_reach = True
+                print("Trying OBJECT: ", o)
 
                 # For the reachable object, generate subgoals
                 Z = self.generate_subgoal(node, o, sample_count=10)
 
                 # For each subgoal try to pick and place
-                for z in Z:
-                    C2 = self.make_agent(node.C, o)
-                    P, f1 = self.find_place_path(C2, z, self.verbose, N=5)
-                    if f1: 
-                        feas, C_n = self.solve_path(node.C, P, self.agent, o, node.FS, self.verbose, K=2)
+                C2 = self.make_agent(node.C, o)
+                P, f1 = self.find_place_path(C2, z, self.verbose, N=3)
+                if f1:
+                    fs = copy.deepcopy(node.FS)
+                    for z in Z:
+                        feas, C_n = self.solve_path(node.C, P, self.agent, o, fs, self.verbose, K=2)
                         if feas and not self.reject(N, C_n, node.pair):
                             # Calculate the scene score
-                            new_node = Node(C=C_n, pair=node.pair, parent=node, layer=node.layer+1, FS=node.FS, init_scene_scores=node.init_scene_scores, prev_scene_scores=node.prev_scene_scores)
+                            new_node = Node(C=C_n, pair=node.pair, parent=node, layer=node.layer+1, FS=fs, init_scene_scores=node.init_scene_scores, prev_scene_scores=node.prev_scene_scores)
                             self.node_score(new_node)
 
-                            if self.verbose > 0:
+                            if self.verbose > 1:
                                 C_n.view(True, "New Node")
-
                             N.append(new_node)
                             
             if not any_reach:
@@ -188,7 +191,8 @@ class SeGMan():
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
 
-    def weight_collision_pairs(self, pair_path:dict):  
+    def weight_collision_pairs(self, pair_path:dict): 
+
         # Make all arrays the same length
         min_length = min(len(value) for value in pair_path.values())
         pair_path = {key: value[:min_length] for key, value in pair_path.items()}
@@ -207,14 +211,25 @@ class SeGMan():
                 distance_matrix[i, j] = distance
                 distance_matrix[j, i] = distance
 
+        # Compute pairwise DTW distances
+        n = len(path_values)
+        distance_matrix2 = np.zeros((n, n))
+        for i in range(n):
+            for j in range(i, n):
+                distance = dtw.distance(path_values[i].flatten(), path_values[j].flatten())
+                distance_matrix2[i, j] = distance
+                distance_matrix2[j, i] = distance
+
         # Build the directed similarity graph
         directed_graph = nx.DiGraph()
         for i in range(n):
-            distances = distance_matrix[i]
+            distances = distance_matrix2[i]
             distances[i] = np.inf  # Exclude self-distance
-            most_similar_index = np.argmin(distances)
-            # Add a directed edge from the current node to the most similar node
-            directed_graph.add_edge(path_names[i], path_names[most_similar_index])
+            closest_idx = np.argmin(distances)
+            directed_graph.add_edge(path_names[i], path_names[closest_idx])
+            for j, dist in enumerate(distances):
+                if dist < 0.2:
+                    directed_graph.add_edge(path_names[i], path_names[j])
 
         # Find weakly connected components (clusters disregarding direction)
         clusters = list(nx.weakly_connected_components(directed_graph))
@@ -238,7 +253,7 @@ class SeGMan():
             for name in cluster:
                 pair_size = len(name)
                 num_references = directed_graph.in_degree(name)  # Count incoming edges
-                pair_score = (1 + num_references) / pair_size
+                pair_score = 1 / pair_size
                 core_score = 2 if core_pair == name else 1
                 final_score = core_score * pair_score * normalized_cluster_size
                 weighted_obstacle_pairs.append(Pair(objects=[*name], weight=final_score)) 
@@ -304,8 +319,8 @@ class SeGMan():
         Ct.addConfigurationCopy(self.C_hm)
 
         c0 = 5
-        c1 = 1e-1
-        gamma = 0.9
+        c1 = 1
+        gamma = 0.3
 
         for o in node.pair.objects:
             Ct.frame(o).setPosition(node.C.frame(o).getPosition())
@@ -344,7 +359,7 @@ class SeGMan():
             node.global_scene_score = global_scene_score
             node.temporal_scene_score = temporal_scene_score
 
-        weighted_scene_score = ((1-gamma) * temporal_scene_score + gamma * global_scene_score) / (300*300*3*c1)
+        weighted_scene_score = ((1-gamma) * temporal_scene_score + gamma * global_scene_score) / (30*30*3*c1)
         exploitation = weighted_scene_score * node.pair.weight
         exploration  = c0 * math.sqrt(math.log(1+parent_visit) / visit)
         total_node_score = exploitation + exploration
@@ -618,7 +633,7 @@ class SeGMan():
 # -------------------------------------------------------------------------------------------------------------- #
 
     def scene_score(self, C:ry.Config, cam_frame:str):
-        img = SeGMan.get_image(C, cam_frame, self.verbose)
+        img = SeGMan.get_image(C, cam_frame, 2)
         scene_score = 0
         for r in img:
             for rgb in r:
@@ -628,6 +643,8 @@ class SeGMan():
                     scene_score += 2 
                 elif rgb[1] > 200 and rgb[0] < 200 and rgb[2] < 200:
                     scene_score += 3   
+                elif rgb[0] < 200 and rgb[1] < 200 and rgb[2] > 200:
+                    scene_score += 10  
         if self.verbose > 1:
             print(f"Scene score: {scene_score}")      
         return scene_score
