@@ -39,7 +39,7 @@ class SeGMan():
         
         while not found:
             # Find a feasible pick configuration and path
-            f, _ = self.find_pick_path(self.C, self.agent, self.obj, self.FS, self.verbose, 1, 1)
+            f, _ = self.find_pick_path(self.C, self.agent, self.obj, self.FS, self.verbose, 2, 3)
             
             # If it is not possible to go check if there is an obstacle that can be removed
             if not f: 
@@ -53,7 +53,7 @@ class SeGMan():
 
             # Check for object path
             C2 = self.make_agent(self.C, self.obj)
-            fr, P = self.run_rrt(C2, self.goal, [], self.verbose, N=2, step_size=0.01)
+            fr, P = self.run_rrt(C2, self.goal, [], self.verbose, N=2, step_size=0.05)
 
             # If it is not possible to go check if there is an obstacle that can be removed
             if not fr: 
@@ -296,7 +296,7 @@ class SeGMan():
         if self.verbose > 0:
             # Output Pair objects
             for pair in weighted_obstacle_pairs:
-                print(f"Pair: {pair.objects}, Score: {pair.weight:.4f}")
+                print(f"Pair: {pair.objects}, Weight: {pair.weight:.4f}")
 
         return weighted_obstacle_pairs
 
@@ -338,7 +338,7 @@ class SeGMan():
         c0 = 8
         c1 = 2e-2
         gamma = 0.4
-        weight_discount = 0.95
+        weight_discount = 0.9
 
         for o in node.pair:
             Ct.frame(o).setPosition(node.C.frame(o).getPosition())
@@ -355,6 +355,7 @@ class SeGMan():
         node_weight = 1
         cur_pair = None
         for p in self.OP:
+           
             if p.objects == node.pair:
                 cur_pair = p
                 node_weight = p.weight
@@ -468,7 +469,9 @@ class SeGMan():
 
         obj_pos = node.C.frame(o).getPosition()
         feas_count = 0
-        for _ in range(sample_count*5):
+        err_count = 0
+        err_lim = 10
+        for _ in range(sample_count*3):
             
             if self.verbose > 0:
                 print(f"Subnode: {feas_count} / {sample_count}")
@@ -503,9 +506,10 @@ class SeGMan():
                     self.node_score(new_node)
                     N.append(new_node)
                     feas_count += 1
+            else:
+                err_count += 1
 
-
-            if feas_count == sample_count:
+            if feas_count == sample_count or err_count == err_lim:
                 return
 
 # -------------------------------------------------------------------------------------------------------------- #
