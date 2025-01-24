@@ -53,7 +53,7 @@ class SeGMan():
 
             # Check for object path
             C2 = self.make_agent(self.C, self.obj)
-            fr, P = self.run_rrt(C2, self.goal, [], self.verbose, N=2, step_size=0.05)
+            fr, P = self.run_rrt(C2, self.goal, [], self.verbose, N=2, step_size=0.01)
 
             # If it is not possible to go check if there is an obstacle that can be removed
             if not fr: 
@@ -703,7 +703,7 @@ class SeGMan():
                 S.addEntry([0.1, -1], ry.SY.touch, [agent, obj])
                 S.addEntry([0.2, -1], ry.SY.stable, [agent, obj])
                 S.addEntry([0.3, 0.4], ry.SY.positionEq, ["subgoal", obj])
-                komo = S.getKomo_path(Ct, 10, 1e-5, 1e-3, 1e-5, 1e1)
+                komo = S.getKomo_path(Ct, 30, 1e-5, 1e-3, 1e-5, 1e1)
                 ret = ry.NLP_Solver(komo.nlp(), verbose=0).solve() 
                 Ct.delFrame("subgoal")
                 feasible = ret.eq < 1

@@ -6,7 +6,7 @@ import time
 
 if __name__ == "__main__":
     C = ry.Config()
-    C.addFile("../src/config/p3-maze/p3-maze.g")
+    C.addFile("../src/config/p2-maze-easy/p2-maze-easy.g")
 
     EGO_NAME = "ego"
     OBJ_NAME = "obj"

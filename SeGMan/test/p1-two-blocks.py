@@ -2,26 +2,24 @@ import robotic as ry
 import sys
 sys.path.append('..')
 from src.SeGMan import SeGMan
+import time
 
 if __name__ == "__main__":
     C = ry.Config()
-    C.addFile("../src/config/p3-maze/p3-maze.g")
-    C2 = ry.Config()
-    C2.addFile("../src/config/p3-maze/p3-maze-actuated.g")
+    C.addFile("../src/config/p1-two-blocks/p1-two-blocks.g")
+    C_hm = ry.Config()
+    C_hm.addFile("../src/config/p1-two-blocks/p1-two-blocks-heatmap.g")
 
     EGO_NAME = "ego"
     OBJ_NAME = "obj"
     GOAL     = C.getFrame("goal").getPosition()[0:2]
-    C2.setJointState(C.getFrame(OBJ_NAME).getPosition()[0:2])
+    OBS_LIST = ["obj1", "obj2"]
     C.view(True)
     C.view_close()
 
-    segman = SeGMan(C, C2, EGO_NAME, OBJ_NAME, GOAL, [], 0)
+    segman = SeGMan(C, C_hm, EGO_NAME, OBJ_NAME, GOAL, OBS_LIST, 0)
+    tic = time.time()
     if segman.run():
-        segman.display_solution()
-
-
-
-
-
-
+        toc = time.time()
+        print("Time elapsed: {} seconds".format(toc - tic))
+        segman.display_solution(pause = 0.2)
