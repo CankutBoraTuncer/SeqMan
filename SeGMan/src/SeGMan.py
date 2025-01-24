@@ -496,7 +496,9 @@ class SeGMan():
                     fs = copy.deepcopy(node.FS)
                     for p in komo.getPathFrames():
                         fs.append(p)
-                    Ct.setFrameState(komo.getPathFrames()[-1])
+                        Ct.setFrameState(p)
+                        #Ct.view(True, "Subgoal Generation Solution")
+                    
                     new_node = Node(C=Ct, pair=node.pair, parent=node, layer=node.layer+1, FS=fs, init_scene_scores=node.init_scene_scores, prev_scene_scores=node.prev_scene_scores)
                     self.node_score(new_node)
                     N.append(new_node)
