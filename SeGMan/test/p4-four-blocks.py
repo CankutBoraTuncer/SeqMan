@@ -2,6 +2,7 @@ import robotic as ry
 import sys
 sys.path.append('..')
 from src.SeGMan import SeGMan
+import time
 
 if __name__ == "__main__":
     C = ry.Config()
@@ -17,8 +18,11 @@ if __name__ == "__main__":
     C.view_close()
 
     segman = SeGMan(C, C_hm, EGO_NAME, OBJ_NAME, GOAL, OBS_LIST, 0)
+    tic = time.time()
     if segman.run():
-        segman.display_solution()
+        toc = time.time()
+        print("Time elapsed: {} seconds".format(toc - tic))
+        segman.display_solution(pause = 0.2)
 
 
 

@@ -24,6 +24,7 @@ class SeGMan():
     def __init__(self, C:ry.Config, C_hm:ry.Config, agent:str, obj:str, goal:list, obs_list:list, verbose:int):
         self.C = C
         self.C_hm = C_hm
+        
         self.agent = agent
         self.obj = obj
         self.goal = goal
@@ -35,7 +36,7 @@ class SeGMan():
 
     def run(self):
         found = False
-        C2 = self.make_agent(self.C, self.obj)
+        
         while not found:
             # Find a feasible pick configuration and path
             f, _ = self.find_pick_path(self.C, self.agent, self.obj, self.FS, self.verbose, 1, 1)
@@ -44,18 +45,15 @@ class SeGMan():
             if not f: 
                 # Remove obstacle
                 
-                fs, FS = self.remove_obstacle(0)
+                fs, _ = self.remove_obstacle(0)
                 if not fs:
                     return
-                else:
-                    self.FS.append(FS)
             
             self.C.setFrameState(self.FS[-1])
-            self.C.view(True, "True")
 
             # Check for object path
-            C2.setJointState(self.C.frame(self.obj).getPosition()[0:2])
-            P, fr = self.find_place_path(C2, self.goal, self.verbose)
+            C2 = self.make_agent(self.C, self.obj)
+            fr, P = self.run_rrt(C2, self.goal, [], self.verbose, N=2, step_size=0.05)
 
             # If it is not possible to go check if there is an obstacle that can be removed
             if not fr: 
@@ -128,7 +126,10 @@ class SeGMan():
                 if f:
                     tac = time.time()
                     print("Time: ", tac-tic)
-                    self.display_solution(node.FS)
+                    #self.display_solution(node.FS)
+                    for fs in node.FS:
+                        self.FS.append(fs)
+
                     return True, node.FS 
             else:
                 f, P  = self.find_place_path(node.C, node.C.frame(self.obj).getPosition()[0:2], self.verbose, N=2)
@@ -477,8 +478,10 @@ class SeGMan():
 
             obj_pos_n = obj_pos + [random.uniform(0.1, radius), random.uniform(0.1, radius), 0]
             Ct.addFrame("cur_pos", "world", "shape: marker, size: [0.1]").setPosition(obj_pos_n)
-            komo = ry.KOMO(Ct, phases=2, slicesPerPhase=3, kOrder=1, enableCollisions=True)                            # Initialize LGP
-            #komo.initRandom()
+            komo = ry.KOMO(Ct, phases=2, slicesPerPhase=10, kOrder=2, enableCollisions=True)                            # Initialize LGP
+            
+            komo.addControlObjective([], 1, 1e-1)
+            komo.addControlObjective([], 2, 1e-1)
             komo.addObjective([], ry.FS.accumulatedCollisions, [], ry.OT.eq, scale=1e3)                                                                                        # Randomize the initial configuration
             komo.addObjective([0,1], ry.FS.distance, [self.agent, o], ry.OT.eq, scale=1e2, target=0)                                     # Pick
             komo.addModeSwitch([1,2], ry.SY.stable, [self.agent, o], True)   
@@ -491,12 +494,14 @@ class SeGMan():
             
             if ret.feasible:
                     fs = copy.deepcopy(node.FS)
-                    fs.append(komo.getPathFrames())
+                    for p in komo.getPathFrames():
+                        fs.append(p)
                     Ct.setFrameState(komo.getPathFrames()[-1])
                     new_node = Node(C=Ct, pair=node.pair, parent=node, layer=node.layer+1, FS=fs, init_scene_scores=node.init_scene_scores, prev_scene_scores=node.prev_scene_scores)
                     self.node_score(new_node)
                     N.append(new_node)
                     feas_count += 1
+
 
             if feas_count == sample_count:
                 return
@@ -615,7 +620,7 @@ class SeGMan():
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
 
-    def run_rrt(self, C:ry.Config, goal:list, FS:list, verbose: int, N:int=20):
+    def run_rrt(self, C:ry.Config, goal:list, FS:list, verbose: int, N:int=20, step_size:float=0.05):
         Ct = ry.Config()
         Ct.addConfigurationCopy(C)
         for n in range(N):
@@ -624,7 +629,7 @@ class SeGMan():
                 print(f"Trying Pick RRT for {n}")
             with self.suppress_stdout():
                 ry.params_clear()
-                ry.params_add({"rrt/stepsize": 0.05})
+                ry.params_add({"rrt/stepsize": step_size})
                 rrt = ry.PathFinder()                    
                 rrt.setProblem(Ct, Ct.getJointState(), goal)
                 s = rrt.solve()
@@ -756,7 +761,7 @@ class SeGMan():
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
 
-    def display_solution(self, FS:list=None):
+    def display_solution(self, FS:list=None, pause:float=0.05):
         Ct = ry.Config()
         Ct.addConfigurationCopy(self.C)
 
@@ -767,7 +772,7 @@ class SeGMan():
         for fs in FS:
             Ct.setFrameState(fs)
             Ct.view(False, "Solution")
-            time.sleep(0.5)
+            time.sleep(pause)
 
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
