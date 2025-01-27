@@ -6,7 +6,7 @@ import time
 
 if __name__ == "__main__":
     C = ry.Config()
-    C.addFile("../src/config/p2-maze-easy/p2-maze-easy.g")
+    C.addFile("../src/config/p8-corner/p8-corner.g")
 
     EGO_NAME = "ego"
     OBJ_NAME = "obj"
@@ -20,7 +20,7 @@ if __name__ == "__main__":
     if segman.run():
         toc = time.time()
         print("Time elapsed: {} seconds".format(toc - tic))
-        segman.display_solution(pause = 0.05)
+        segman.display_solution(pause = 0.02)
 
 
 

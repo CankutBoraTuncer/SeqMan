@@ -93,8 +93,9 @@ class HMAP:
                 S.addEntry([0.2, -1], ry.SY.stable, [agent, self.target])
                 S.addEntry([0.3, 0.4], ry.SY.positionEq, ["subgoal", self.target])
                 komo = S.getKomo_path(self.C, 10, 1e-3, 1e-3, 1e-5, 1e2)
+
                 ret = ry.NLP_Solver(komo.nlp(), verbose=0).solve() 
-                
+           
                 self.C.delFrame("subgoal")
 
                 if ret.eq < 1:

@@ -36,10 +36,11 @@ class SeGMan():
 
     def run(self):
         found = False
-        
+        wp_f = []
+
         while not found:
             # Find a feasible pick configuration and path
-            f, _ = self.find_pick_path(self.C, self.agent, self.obj, self.FS, self.verbose, 2, 3)
+            f, _ = self.find_pick_path(self.C, self.agent, self.obj, self.FS, self.verbose, wp_f=wp_f, K=2, N=3)
             
             # If it is not possible to go check if there is an obstacle that can be removed
             if not f: 
@@ -66,7 +67,7 @@ class SeGMan():
                     return
 
             # Follow the RRT path with KOMO
-            found, self.C = self.solve_path(self.C, P, self.agent, self.obj, self.FS, self.verbose)
+            found, self.C, wp_f = self.solve_path(self.C, P, self.agent, self.obj, self.FS, self.verbose)
 
         if found:
             print("Solution found!")
@@ -145,7 +146,6 @@ class SeGMan():
                     continue
                 any_reach = True
                 
-
                 # For the reachable object, generate subgoals
                 self.generate_subnode(node, o, N, sample_count=10, radius=0.6)
            
@@ -247,7 +247,7 @@ class SeGMan():
             closest_idx = np.argmin(distances)
             directed_graph.add_edge(path_names[i], path_names[closest_idx])
             for j, dist in enumerate(distances):
-                if dist < 0.2:
+                if dist < 0.45:
                     directed_graph.add_edge(path_names[i], path_names[j])
 
         # Find weakly connected components (clusters disregarding direction)
@@ -545,6 +545,7 @@ class SeGMan():
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
     def find_collision_pairs(self, type:int, OP:list):
+        tic = time.time()
         if self.verbose > 0:
             print("Finding collision pairs")
         
@@ -563,6 +564,8 @@ class SeGMan():
             
             for o in op:
                 Ct.frame(o).setContact(0)
+            
+            Ct.frame(self.obj).setContact(0)
 
             f = False
             if type == 0:
@@ -570,10 +573,12 @@ class SeGMan():
                     f, goal = self.find_pick_komo(Ct, self.agent, self.obj, self.verbose, K=3)
                     if f:
                         goal_set = True
-                        f, path = self.run_rrt(Ct, goal, [], verbose=self.verbose, N=1)
+                        #f, path = self.run_rrt(Ct, goal, [], verbose=self.verbose, N=1)
+                        f, path = self.path_end_check(Ct)
 
                 else:
-                    f, path = self.run_rrt(Ct, goal, [], verbose=self.verbose, N=1)
+                    #f, path = self.run_rrt(Ct, goal, [], verbose=self.verbose, N=1)
+                    f, path = self.path_end_check(Ct)
             else:
                 f, path = self.find_place_path(Ct, goal, self.verbose, N=3)
 
@@ -583,20 +588,58 @@ class SeGMan():
             if self.verbose > 1:
                 print(f"Is {op} blocking path: {f}")
 
+        tac = time.time()
+        print("Collision Pair Time: " , tac-tic)
+
         if self.verbose > 0:
             print(f"The blocking obstacle pairs: {pair_path.keys()}")
+            
+        
         return pair_path
 
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
 
-    def find_pick_path(self, C:ry.Config, agent:str, obj:str, FS:list, verbose: int, K:int=20, N:int=20):
+    def find_pick_path(self, C:ry.Config, agent:str, obj:str, FS:list, verbose: int, wp_f:list=[], K:int=5, N:int=5):
         if verbose > 0:
             print(f"Running Pick Path")
-        feas, goal = self.find_pick_komo(C, agent, obj, verbose, K)
-        if feas:
-            return self.run_rrt(C, goal, FS, verbose, N)
+
+        Ct = ry.Config()
+        Ct.addConfigurationCopy(C)
+        if verbose > 1:
+            print(f"Running Pick KOMO")
+        for k in range(K):
+            if verbose > 1:
+                print(f"Trying Pick KOMO for {k}")
+
+            if len(wp_f) == 0:
+                S = ry.Skeleton()
+                S.enableAccumulatedCollisions(True)
+                S.addEntry([0, 1], ry.SY.touch, [agent, obj])
+                komo = S.getKomo_path(Ct, 1, 1e-1, 1e1, 1e-1, 1e2)
+            else:
+                Ct.addFrame("subgoal", "world", "shape: marker, size: [0.1]").setPosition([*wp_f, 0.2])
+                S.addEntry([0.1, -1], ry.SY.touch, [agent, obj])
+                S.addEntry([0.2, -1], ry.SY.stable, [agent, obj])
+                S.addEntry([0.3, 0.4], ry.SY.positionEq, ["subgoal", obj])
+                komo = S.getKomo_path(Ct, 30, 1e-5, 1e-3, 1e-5, 1e1)
+                
+            if k != 3: 
+                komo.initRandom()  
+
+            ret = ry.NLP_Solver(komo.nlp(), verbose=0).solve() 
+
+            if len(wp_f) > 0:
+                Ct.delFrame("subgoal")
+
+            if verbose > 1:
+                komo.view_play(True, f"Pick Komo Solution: {ret.feasible}")
+                komo.view_close()
+            if ret.feasible:
+                fr, P = self.run_rrt(C, komo.getPath()[-1], FS, verbose, N)
+                if fr:
+                    return True, P
         return False, None
     
 # -------------------------------------------------------------------------------------------------------------- #
@@ -625,6 +668,32 @@ class SeGMan():
             if ret.feasible:
                 return True, komo.getPath()[-1]    
         return False, None
+
+# -------------------------------------------------------------------------------------------------------------- #
+# -------------------------------------------------------------------------------------------------------------- #
+# -------------------------------------------------------------------------------------------------------------- #
+
+    def path_end_check(self, C:ry.Config):
+
+        Ct = ry.Config()
+        Ct.addConfigurationCopy(C)
+
+        komo = ry.KOMO(Ct, phases=1, slicesPerPhase=20, kOrder=2, enableCollisions=True)                            # Initialize LGP
+        
+        komo.addControlObjective([], 1, 1e-1)
+        komo.addControlObjective([], 2, 1e-1)
+        komo.addObjective([], ry.FS.accumulatedCollisions, [], ry.OT.eq, scale=1e3)                                                                                        # Randomize the initial configuration
+        komo.addObjective([1,2] , ry.FS.positionDiff, [self.agent, self.obj], ry.OT.eq, scale=1e1)  # Place constraints 
+        ret = ry.NLP_Solver(komo.nlp(), verbose=0).solve() 
+
+        if self.verbose > 1:
+            komo.view_play(True, f"Path End Check: {ret.feasible}")
+            komo.view_close()
+
+        if ret.feasible: 
+            return True, komo.getPath()
+        
+        return False, None
     
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
@@ -635,6 +704,7 @@ class SeGMan():
         Ct.addConfigurationCopy(C)
         if verbose > 1:
             C.view(True, "RRT Init")
+            C.view_close()
         for n in range(N):
             # Find feasible path between configurations
             if verbose > 1:
@@ -707,7 +777,7 @@ class SeGMan():
             for k in range(K):
                 Ct.addFrame("subgoal", "world", "shape: marker, size: [0.1]").setPosition([*wp, 0.2])
                 if verbose > 1:
-                    print(f"Trying Move KOMO for {k}")
+                    print(f"Trying Move KOMO for {k+1} time")
                 S = ry.Skeleton()
                 S.enableAccumulatedCollisions(True)
                 S.addEntry([0.1, -1], ry.SY.touch, [agent, obj])
@@ -720,13 +790,18 @@ class SeGMan():
                 if verbose > 1 and not feasible:
                     komo.view_play(True, f"Move Komo Solution: {feasible}")
                     komo.view_close()
+
                 if feasible:
                     Ct.setFrameState(komo.getPathFrames()[-1])
                     FS.append(komo.getPathFrames())
                     break
+                elif k == K-1:
+                    return False, Ct, wp
+                
             if pi == len(P)-1:
-                return True, Ct
-        return False, None
+                return True, Ct, None
+            
+        return False, None, None
 
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
