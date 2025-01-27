@@ -18,7 +18,8 @@ wall4_h (world){ shape:ssBox, Q:"t(0.0 1.25 0.3)", size:[2.65 .1 0.6 .02], color
 
 wall5_v (world){ shape:ssBox, Q:"t(-1.4 0.0 0.3)", size:[0.1 2.6 0.6 .02], color:[0.6953 0.515625 .453125],  contact: 1 }
 
-obj(floor) { type:ssBox size:[.3 .3 .2 .02] Q:"t(1.5 -1.5  .15)" color:[0. 0. 1.],  logical={ object }, joint:rigid, contact: 1 }
+objJoint(world){ Q:[1.5 -1.5 0.1] } # works
+obj(objJoint) {type:ssBox size:[.3 .3 .2 .02] color:[0. 0. 1.],  logical={ object }, joint:rigid, contact: 1 }
 
 goalLarge (world){ shape:ssBox, Q:"t(-1.6 1.6 -0.01)", size:[0.2 0.2 0.025, 0.01], color:[1. .3 .3]}
 

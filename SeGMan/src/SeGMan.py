@@ -43,9 +43,10 @@ class SeGMan():
             
             # If it is not possible to go check if there is an obstacle that can be removed
             if not f: 
+                fs = False
                 # Remove obstacle
-                
-                fs, _ = self.remove_obstacle(0)
+                if len(self.obs_list) > 0:
+                    fs, _ = self.remove_obstacle(0)
                 if not fs:
                     return
             
@@ -57,12 +58,12 @@ class SeGMan():
 
             # If it is not possible to go check if there is an obstacle that can be removed
             if not fr: 
+                fs = False
                 # Remove obstacle
-                fs = self.remove_obstacle(1)
+                if len(self.obs_list) > 0:
+                    fs, _ = self.remove_obstacle(1)
                 if not fs:
                     return
-                else:
-                    continue
 
             # Follow the RRT path with KOMO
             found, self.C = self.solve_path(self.C, P, self.agent, self.obj, self.FS, self.verbose)
@@ -79,6 +80,7 @@ class SeGMan():
 # -------------------------------------------------------------------------------------------------------------- #
 
     def remove_obstacle(self, type:int):
+
         # Type 0: Agent cannot reach obj, Type: 1 Obj cannot reach goal
         tic = time.time()
         # Generate obstacle pair
@@ -423,12 +425,14 @@ class SeGMan():
         for fn in frame_names:
             if "ego" in fn:
                 C2.delFrame(fn)
-
+        
         obj_f = C2.getFrame(obj)
-        pos = obj_f.getPosition()
-        obj_f.setPosition([0, 0, 0.2])
+        obj_J = C2.getFrame(obj+"Joint")
 
+        pos = obj_f.getPosition()        
         obj_f.setJoint(ry.JT.transXY, limits=[-4, 4, -4, 4])
+        
+        obj_J.setPosition([0, 0, 0.2])
         C2.setJointState(pos[0:2])
 
         return C2
@@ -629,10 +633,12 @@ class SeGMan():
     def run_rrt(self, C:ry.Config, goal:list, FS:list, verbose: int, N:int=20, step_size:float=0.05):
         Ct = ry.Config()
         Ct.addConfigurationCopy(C)
+        if verbose > 1:
+            C.view(True, "RRT Init")
         for n in range(N):
             # Find feasible path between configurations
             if verbose > 1:
-                print(f"Trying Pick RRT for {n}")
+                print(f"Trying RRT for {n}")
             with self.suppress_stdout():
                 ry.params_clear()
                 ry.params_add({"rrt/stepsize": step_size})
@@ -644,12 +650,12 @@ class SeGMan():
             if s.feasible:
                 path = s.x
                 if verbose > 1:
-                    Ct.view(True, "Pick Solution")
+                    Ct.view(True, "RRT Solution")
                 for p in path:
                     Ct.setJointState(p)
                     FS.append(Ct.getFrameState())
                     if verbose > 1:
-                        Ct.view(False, "Pick Solution")
+                        Ct.view(False, "RRT Solution")
                         time.sleep(0.05)
                 Ct.view_close()
                 return True, path
