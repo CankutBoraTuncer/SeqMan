@@ -93,6 +93,9 @@ def score_function(x:Node):
     config = ry.Config()
     config.addConfigurationCopy(x.C)
 
+    #object blocking the goal and subgoal should not be a problem??
+    config.delFrame(x.o)
+    
     config.addFrame("subgoal_mark", "world", "shape:ssBox, size:[0.2 0.2 .1 .005], color:[1. .3 .3 0.9], contact:0, logical:{table}").setPosition([*goal[0:2], 0.1])                        # Add goal frame
 
     # The subgoal scoring heuristic
@@ -110,16 +113,28 @@ def score_function(x:Node):
 
     vdist = 0
 
-    if d < 2:
+    if d < 0.2:
         vdist = 5
-    elif d < 4:
+    elif d < 0.4:
         vdist = 2
     x.score = 10*v0 + 5*vg + vdist    
 
+    # if x.score > 15:
+    #     config.view(True,f"Score is: {x.score}")
+        # # File path
+        # file_path = 'output2.txt'
+
+        # # Open the file in append mode and write the array
+        # with open(file_path, 'a') as file:
+        #     # Convert the array to a string and write it to the file
+        #     file.write(', '.join(map(str, goal)) + '\n')
+    #print(10*v0 + 5*vg + vdist)  
+    #return 10*v0 + 5*vg + vdist
+
 
 def select_node(L:list):                                            # Returns the node with the lowest cost
-    min_score = np.inf
-    min_node  = None
+    max_score = -np.inf
+    max_node  = None
     t         = 0                                                   # Min try count 
 
     while t <= 2:                                                    # Each node can be tried twice 
@@ -127,19 +142,19 @@ def select_node(L:list):                                            # Returns th
             if x.t == t:
                 if x.score < 0:
                     score_function(x)
-                if x.score  < min_score:                              # Node with the least try count has more priority
-                    min_score = x.score
-                    min_node = x
+                if x.score  > max_score:                              # Node with the least try count has more priority
+                    max_score = x.score
+                    max_node = x
 
-        if min_node is not None:                                    # Leave if a node is found
+        if max_node is not None:                                    # Leave if a node is found
             break
         t += 1
 
-    if min_node is None:
+    if max_node is None:
         return None
     
-    min_node.t += 1                                                 # Increment the number of times this node is tried
-    return min_node
+    max_node.t += 1                                                 # Increment the number of times this node is tried
+    return max_node
         
 def solve(x:Node, view:bool=False):                                          # Solve the task from the current configuration x to the end goal g
     config = ry.Config()
@@ -147,7 +162,7 @@ def solve(x:Node, view:bool=False):                                          # S
     agent  = x.agent
     obj    = x.o
     goal   = x.og
-    config.addFrame("subgoal", "world", "shape:ssBox, size:[0.2 0.2 .05 .005], color:[1. .3 .3 0.9], contact:0, logical:{table}").setPosition([*goal[0:2], 0.0])                        # Add goal frame
+    config.addFrame("subgoal", "world", "shape:ssBox, size:[0.2 0.2 .05 .005], color:[1. .3 .3 0.9], contact:0, logical:{table}").setPosition([goal])                        # Add goal frame
     p = x.path[:]
     ln = x.layer_no
 
@@ -176,59 +191,104 @@ def solve(x:Node, view:bool=False):                                          # S
 
     return Node(config, Node.main_goal, path=p, layer_no=ln, score=x.score), ret.feasible
 
-def sub_solve(x:Node, view:bool=False):                                          # Solve the task from the current configuration x to the end goal g
+def sample_points_around_object(C, agent, obj, num_points):
+    center = C.frame(obj).getPosition()[:2]
+    objSize = C.frame(obj).getSize()
+    agentSize = C.frame(agent).getSize()
+    inner_radius = objSize[0] / 2
+    outer_radius = objSize[0] / 2 + agentSize[0] / 2 + 0.5
+    # Randomly generate points in a cube first
+    points = np.random.uniform(-1, 1, size=(num_points, 2))
+    
+    # Normalize the points to lie on a unit sphere
+    points /= np.linalg.norm(points, axis=1)[:, np.newaxis]
+    
+    # Scale points to lie within the spherical shell (inner_radius to outer_radius)
+    radii = np.random.uniform(inner_radius, outer_radius, size=num_points)
+    points = center + points * radii[:, np.newaxis]
+    
+    return points
+    
+
+def sub_solve(x:Node, view:bool=False, max_iter:int=10):                                          # Solve the task from the current configuration x to the end goal g
     config = ry.Config()
     config.addConfigurationCopy(x.C)
     agent  = x.agent
     obj    = x.o
     goal   = x.og
-    config.addFrame("subgoal", "world", "shape:ssBox, size:[0.2 0.2 .05 .005], color:[1. .3 .3 0.9], contact:0, logical:{table}").setPosition([*goal[0:2], 0.0])                        # Add goal frame
+    config.addFrame("subgoal", "world", "shape:ssBox, size:[0.2 0.2 .05 .005], color:[1. .3 .3 0.9], contact:0, logical:{table}").setPosition([goal])                        # Add goal frame
     p = x.path[:]
     ln = x.layer_no
     komo_path = []
+    iter = 0
+    qHome = config.getJointState()
+    #qC =  C.getJointState()
+    pairs = sample_points_around_object(config, agent, obj, max_iter * 2)
+    pairs = np.insert(pairs, 0, qHome, 0)
+    #print(pairs)
+    for i, j in pairs:
+        if iter > max_iter:
+            break
+        Ctemp = ry.Config()
+        Ctemp.addConfigurationCopy(config)
 
-    komo = ry.KOMO(config, phases=2, slicesPerPhase=1, kOrder=1, enableCollisions=True)                            # Initialize LGP
-    komo.initRandom()       
-    komo.addObjective([], ry.FS.accumulatedCollisions, [], ry.OT.eq, scale=1e3)                                                                                        # Randomize the initial configuration
-    komo.addObjective([0,1], ry.FS.distance, [agent, obj], ry.OT.eq, scale=1e2, target=0)                                     # Pick
-    komo.addModeSwitch([1,2], ry.SY.stable, [agent, obj], True)   
-    komo.addObjective([1,2] , ry.FS.aboveBox, [obj, "subgoal"], ry.OT.ineq, scale=1e1)  # Place constraints 
+        config_col = ry.Config()
+        config_col.addConfigurationCopy(config)
+        komo_path = []
+        #x, y = sample_random_point(Ctemp) 
+        config_col.setJointState([i,j])
+        col = config_col.getCollisionsTotalPenetration()
+        if col > 0:
+            continue
 
-    ret = ry.NLP_Solver(komo.nlp(), verbose=0).solve()              # Solve
+        Ctemp.setJointState([i,j])
+        # go to object
+        komo = ry.KOMO(Ctemp, 2, 1, 1, True)
+        komo.addControlObjective([], 0, 1e-2)
+        komo.addControlObjective([], 1, 1e-1)
+        komo.addObjective([], ry.FS.accumulatedCollisions, [], ry.OT.eq, scale=[1e2])
+        komo.addModeSwitch([1.,2], ry.SY.stable, [agent, obj], True)
+        komo.addObjective([1, 2], ry.FS.negDistance, [agent, obj], ry.OT.eq, [1e2])
+        komo.addObjective([2], ry.FS.aboveBox, [obj, "subgoal"], ry.OT.ineq, [1e2])
+        #komo.initRandom() 
+        solver = ry.NLP_Solver(komo.nlp(), verbose=0 )        # Solve
+        ret = solver.solve() 
 
-    #print(ret.eq, ret.ineq, ret.sos, ret.f)
-    #r = komo.report(True, True, True)   
-    if view :#and ret.feasible:    
-        komo.view_play(True, str(ret.feasible), 0.3)
-        komo.view_close()
+        if view :#and ret.feasible:    
+            komo.view_play(True, str(ret.feasible), 0.3)
+            komo.view_close()
 
-    path = komo.getPath()
 
-    q0 = config.getJointState()
-    qT = path[0]
+        #print("Pick-Place feas: ", ret.feasible)
+        if ret.feasible: 
+            path = komo.getPath()
 
-    
-    config1, solution1 = solveRRT(config, q0, qT)
+            q0 = config.getJointState()
+            qT = path[0]
 
-    if solution1.feasible:
-        path1 = getFrames(config1, solution1, view)
-        komo_path += path1
-        
-        config1.attach(agent, obj)
+            
+            config1, solution1 = solveRRT(config, q0, qT)
 
-        q0 = config1.getJointState()
-        qT = path[1]
-        
-        config2, solution2 = solveRRT(config1, q0, qT)
+            if solution1.feasible:
+                path1 = getFrames(config1, solution1, view)
+                komo_path += path1
+                
+                config1.attach(agent, obj)
 
-        if solution2.feasible:
-            path2 = getFrames(config2, solution2, view)
-            komo_path += path2
-            config2.frame(obj).unLink()
-            config2.delFrame("subgoal")
-            p.append(komo_path)
+                q0 = config1.getJointState()
+                qT = path[1]
+                
+                config2, solution2 = solveRRT(config1, q0, qT)
 
-        return Node(config2, Node.main_goal, path=p, layer_no=ln, score=x.score), True
+                if solution2.feasible:
+                    path2 = getFrames(config2, solution2, view)
+                    komo_path += path2
+                    config2.frame(obj).unLink()
+                    config2.delFrame("subgoal")
+                    p.append(komo_path)
+                    
+                    return Node(config2, Node.main_goal, path=p, layer_no=ln, score=x.score), True
+        iter += 1
     return None, False
 
 def getFrames(config, solution, view):
@@ -258,57 +318,77 @@ def reachable(x:Node, o:str):                                       # Return Tru
     config.addConfigurationCopy(x.C)
 
     q_agent  = config.getJointState()
-    q_goal   = config.frame(o).getPosition()[0:2]
-    obj = config.getFrame(o)
-    del obj
-    
+    q_goal   = config.getFrame(o).getPosition()[0:2]
+
+    config.delFrame(o)
+
     with suppress_stdout():
         rrt = ry.PathFinder()                                           # Solve Bi-Directional RRT
-        rrt.setProblem(config, [q_agent], [q_goal], collisionTolerance=0.01)
+        rrt.setProblem(config, [q_agent], [q_goal])
         solution = rrt.solve()
-
+  
     return solution.feasible
+
+def sample_random_points(num_points, max_x, max_y):
+
+    points = np.column_stack((
+        np.random.uniform(-max_x, max_x, size=num_points).round(2),
+        np.random.uniform(-max_y, max_y, size=num_points).round(2)
+    ))
+
+    return points
 
 def propose_subgoals(x:Node, o:str, method:str="random", n:int=100, max_iter:int=5000): # Propose subgoals for the agent
     config       = ry.Config()
     config.addConfigurationCopy(x.C)
+    
     max_x, max_y = config.frame("floor").getSize()[0:2]
     Z            = {}
-
+    obj_height = config.getFrame(o).getPosition()[2]
 
     if method == "random":
         iter = 0 
         
-        while len(Z) < n * 10 and iter < max_iter:                                      # Propose 10n subgoals       
+        pairs = sample_random_points(n * 10, max_x/2, max_y/2) 
+
+        for px, py in pairs:
+            if len(Z) > n - 1:
+                break                                      # Propose n subgoals       
             config_base       = ry.Config()
             config_base.addConfigurationCopy(config)            
 
-            px = np.random.uniform(-max_x/2, max_x/2)                # Generate random point
-            py = np.random.uniform(-max_y/2, max_y/2)
-            pn = [px, py, x.g[1][2]]
+            pn = [px, py, obj_height]
             
             config_temp       = ry.Config()
             config_temp.addConfigurationCopy(config_base)
-
-            col_pre = config_temp.getCollisions()
+            config_temp.delFrame(x.agent)
+            col_pre = config_temp.getCollisionsTotalPenetration()
 
             config_temp.frame(o).setPosition(pn)                      # Set the object position to the random point
 
             config_temp2       = ry.Config()
             config_temp2.addConfigurationCopy(config_temp)
 
-            col_post = config_temp2.getCollisions(1e5)
+            col_post = config_temp2.getCollisionsTotalPenetration()
                 
-            if len(col_pre) != len(col_post):                               # Reject the point if it is in collision
+            if abs(col_post-col_pre) > 0.01:                               # Reject the point if it is in collision
+                #config_temp2.view(True)
                 continue
-        
+            
+            config_temp       = ry.Config()
+            config_temp.addConfigurationCopy(config_base)
+            config_temp.frame(o).setPosition(pn)
+            node_temp = Node(config_temp, [o, pn])
+            if not reachable(node_temp, o):                                  # Check if agent can reach the object
+                continue
+                
             node = Node(config_base, [o, pn], path=x.path, layer_no=(x.layer_no+1))  # Create a new node
             score_function(node)
             Z[node] = node.score
             iter += 1
     
     Z = sorted(Z, key=Z.get, reverse=True)[0:n]                # Sort the list using scoring function
-    Z.append(Node(x.C, x.g, path=x.path, layer_no=(x.layer_no+1), score = x.score)) # Add the original position as a subgoal
+    #Z.append(Node(x.C, x.g, path=x.path, layer_no=(x.layer_no+1), score = x.score)) # Add the original position as a subgoal
 
     #for i, z in enumerate(Z):
     #    config.addFrame(f"subgoal_p{i}", "world", "shape:ssBox, size:[0.2 0.2 .1 .005], color:[.3 1 .3 0.9], contact:0, logical:{table}").setPosition(z.g[1])                        # Add goal frame
@@ -316,7 +396,7 @@ def propose_subgoals(x:Node, o:str, method:str="random", n:int=100, max_iter:int
 
     return Z                                                            # Return the top n subgoals
  
-def rej(L: list, xf: ry.Config, O: list, threshold: float = 0.3):
+def rej(L: list, xf: ry.Config, O: list, threshold: float = 0.05):
     """
     Reject the node if it is similar to at most two nodes in L within a given threshold.
 
@@ -371,5 +451,5 @@ def trace_back(x:Node, C0:ry.Config):                                           
         for pi in p:
             C0.setFrameState(pi)
             C0.view(False, f"View {i}")
-            time.sleep(0.02) 
+            time.sleep(0.05) 
          
