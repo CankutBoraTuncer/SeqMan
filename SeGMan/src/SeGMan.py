@@ -99,7 +99,7 @@ class SeGMan():
 
         # Cluster the pairs based on the path similarity
         self.OP = self.weight_collision_pairs(obstacle_pair_path)
-        self.verbose = 2
+        
         max_iter = 500
         idx = 0
         N = []
@@ -117,7 +117,7 @@ class SeGMan():
             # Select the best node
             node = self.select_node(N, prev_node=prev_node, isFirst=isFirst)
             isFirst = False
-
+            
             if self.verbose > 0:
                 print("Selected Node: " , node)
                 if self.verbose > 2:
@@ -132,7 +132,7 @@ class SeGMan():
             if type==0:
                 if self.verbose > 0:
                     print("Checking if configuration is feasible")
-                f, _ = self.find_pick_path(node.C, self.agent, self.obj, node.FS, self.verbose, K=1, N=1)
+                f, _ = self.find_pick_path(node.C, self.agent, self.obj, node.FS, self.verbose, K=3, N=1)
                 if f:
                     tac = time.time()
                     print("Time: ", tac-tic)
@@ -149,12 +149,13 @@ class SeGMan():
             # Check which objects are reachable in the pair
             any_reach = False
             for o in node.pair:
-                if not self.is_reachable(node, o):
+                is_reach, reach_P = self.is_reachable(node, o)
+                if not is_reach:
                     continue
                 any_reach = True
                 
                 # For the reachable object, generate subgoals
-                self.generate_subnode(node, o, N, sample_count=10, radius=0.6)
+                self.generate_subnode(node, o, N, P=reach_P, sample_count=10, radius=0.6)
            
             if not any_reach:
                 if self.verbose > 0:
@@ -400,7 +401,7 @@ class SeGMan():
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
 
-    def generate_subnode(self, node:Node, o:str, N:list, sample_count:int = 30, radius:int=0.6):
+    def generate_subnode(self, node:Node, o:str, N:list, P:list, sample_count:int = 30, radius:int=0.6, K:int=5):
         if self.verbose > 0:
             print("Generate subgoals")
 
@@ -408,6 +409,8 @@ class SeGMan():
         feas_count = 0
         err_count = 0
         err_lim = 10
+        #self.verbose = 2
+  
         for _ in range(sample_count*3):
             
             if self.verbose > 0:
@@ -416,7 +419,16 @@ class SeGMan():
             Ct = ry.Config()
             Ct.addConfigurationCopy(node.C)
 
-            obj_pos_n = obj_pos + [random.uniform(0.1, radius), random.uniform(0.1, radius), 0]
+            fs = copy.deepcopy(node.FS)
+            for p in P:
+                fs.append(p)
+                Ct.setFrameState(p)
+
+            angle = random.uniform(0, 2 * math.pi)  
+            r = random.uniform(0.1, radius)  
+            obj_pos_n = [obj_pos[0] + r * math.cos(angle), obj_pos[1] + r * math.sin(angle), obj_pos[2]]
+            #obj_pos_n = obj_pos + [random.uniform(0.1, radius), random.uniform(0.1, radius), 0]
+
             Ct.addFrame("cur_pos", "world", "shape: marker, size: [0.1]").setPosition(obj_pos_n)
             komo = ry.KOMO(Ct, phases=2, slicesPerPhase=10, kOrder=2, enableCollisions=True)                            # Initialize LGP
             
@@ -433,7 +445,7 @@ class SeGMan():
                 komo.view_play(True, f"Subgoal Generation Solution: {ret.feasible}")
             
             if ret.feasible:
-                    fs = copy.deepcopy(node.FS)
+            
                     for p in komo.getPathFrames():
                         fs.append(p)
                         Ct.setFrameState(p)
@@ -448,6 +460,7 @@ class SeGMan():
 
             if feas_count == sample_count or err_count == err_lim:
                 return
+                    
 
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
@@ -456,10 +469,11 @@ class SeGMan():
     def is_reachable(self, node:Node, o:str):
         if self.verbose > 0:
             print(f"Checking if object {o} is reachable")
-        is_reachable, _ = self.find_pick_path(node.C, self.agent, o, [], self.verbose, K=2, N=1)  
+        P = []
+        is_reachable, _ = self.find_pick_path(node.C, self.agent, o, P, self.verbose, K=3, N=1)  
         if is_reachable and self.verbose > 0:
             print(f"Object {o} is REACHABLE")
-        return is_reachable
+        return is_reachable, P
 
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #

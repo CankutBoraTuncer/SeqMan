@@ -23,7 +23,7 @@ block_9_8 (floor) 	{  Q:[1.4, 1, 0.2, -1, 0, 0, 0], shape:ssBox, size:[0.4, 0.4,
 #---------------------------------------------------------------------------------------------------#
 
 egoJoint (world) 	{  Q:[0, 0, 0.1, 1, 0, 0, 0] }
-ego (egoJoint) 	{  Q:[-1, 0.2, 0, -1, 0, 0, 0], joint:transXY, limits:[-10, 10, -10, 10], shape:ssCylinder, size:[0.2, 0.2, 0.02], color:[0.96875, 0.742188, 0.308594], contact:1, logical:{ gripper }, sampleUniform:1 }
+ego (egoJoint) 	{  Q:[-1, 0.2, 0, -1, 0, 0, 0], joint:transXY, limits:[-10, 10, -10, 10], shape:ssCylinder, size:[0.2, 0.15, 0.02], color:[0.96875, 0.742188, 0.308594], contact:1, logical:{ gripper }, sampleUniform:1 }
 
 #---------------------------------------------------------------------------------------------------#
 
