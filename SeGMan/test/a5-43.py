@@ -6,14 +6,14 @@ import time
 
 if __name__ == "__main__":
     C = ry.Config()
-    C.addFile("../src/config/p4-four-blocks/p4-four-blocks.g")
+    C.addFile("../src/config/a5-43/a5-43.g")
     C_hm = ry.Config()
-    C_hm.addFile("../src/config/p4-four-blocks/p4-four-blocks-heatmap.g")
+    C_hm.addFile("../src/config/a5-43/a5-43.g")
 
     EGO_NAME = "ego"
     OBJ_NAME = "obj"
     GOAL     = C.getFrame("goal").getPosition()[0:2]
-    OBS_LIST = ["obj1", "obj2", "obj3", "obj4"]
+    OBS_LIST = ["obj1", "obj2"]
     C.view(True)
     C.view_close()
 
@@ -22,7 +22,7 @@ if __name__ == "__main__":
     if segman.run():
         toc = time.time()
         print("Time elapsed: {} seconds".format(toc - tic))
-        segman.display_solution(pause = 0.2)
+        segman.display_solution(pause = 0.05)
 
 
 

@@ -1,4 +1,3 @@
-import random
 import statistics
 import pandas as pd
 from SeqMan import SeqMan
@@ -18,7 +17,7 @@ def process_tasks(file_path):
         runtimes = []
         solved_count = 0
 
-        for _ in range(10):  # Run the method 10 times
+        for _ in range(1):  # Run the method 10 times
             solved, runtime = SeqMan(task_name, object_list)
             if solved:
                 solved_count += 1
@@ -44,4 +43,4 @@ def process_tasks(file_path):
     print(df)
 
 # Example usage
-process_tasks('SeqMan-main/Orig/input.txt')
+process_tasks('input.txt')

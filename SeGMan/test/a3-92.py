@@ -6,14 +6,14 @@ import time
 
 if __name__ == "__main__":
     C = ry.Config()
-    C.addFile("../src/config/p4-four-blocks/p4-four-blocks.g")
+    C.addFile("../src/config/a3-92/a3-92.g")
     C_hm = ry.Config()
-    C_hm.addFile("../src/config/p4-four-blocks/p4-four-blocks-heatmap.g")
+    C_hm.addFile("../src/config/a3-92/a3-92.g")
 
     EGO_NAME = "ego"
     OBJ_NAME = "obj"
     GOAL     = C.getFrame("goal").getPosition()[0:2]
-    OBS_LIST = ["obj1", "obj2", "obj3", "obj4"]
+    OBS_LIST = ["obj1"]
     C.view(True)
     C.view_close()
 

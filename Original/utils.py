@@ -227,6 +227,7 @@ def sub_solve(x:Node, view:bool=False, max_iter:int=10):                        
     pairs = np.insert(pairs, 0, qHome, 0)
     #print(pairs)
     for i, j in pairs:
+        print(iter)
         if iter > max_iter:
             break
         Ctemp = ry.Config()
@@ -259,14 +260,13 @@ def sub_solve(x:Node, view:bool=False, max_iter:int=10):                        
             komo.view_close()
 
 
-        #print("Pick-Place feas: ", ret.feasible)
+        print("Pick-Place feas: ", ret.feasible)
         if ret.feasible: 
             path = komo.getPath()
 
             q0 = config.getJointState()
             qT = path[0]
 
-            
             config1, solution1 = solveRRT(config, q0, qT)
 
             if solution1.feasible:

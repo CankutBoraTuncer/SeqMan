@@ -6,9 +6,9 @@ import time
 
 if __name__ == "__main__":
     C = ry.Config()
-    C.addFile("../src/config/p4-four-blocks-hard/p4-four-blocks-hard.g")
+    C.addFile("../src/config/p10-four-blocks-hard/p10-four-blocks-hard.g")
     C_hm = ry.Config()
-    C_hm.addFile("../src/config/p4-four-blocks-hard/p4-four-blocks-hard-heatmap.g")
+    C_hm.addFile("../src/config/p10-four-blocks-hard/p10-four-blocks-hard-heatmap.g")
 
     EGO_NAME = "ego"
     OBJ_NAME = "obj"

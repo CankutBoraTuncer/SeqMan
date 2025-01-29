@@ -15,12 +15,12 @@ if __name__ == "__main__":
     C.view(True)
     C.view_close()
 
-    segman = SeGMan(C, None, EGO_NAME, OBJ_NAME, GOAL, OBS_LIST, 0)
+    segman = SeGMan(C, None, EGO_NAME, OBJ_NAME, GOAL, OBS_LIST, 2)
     tic = time.time()
     if segman.run():
         toc = time.time()
         print("Time elapsed: {} seconds".format(toc - tic))
-        segman.display_solution(pause = 0.2)
+        segman.display_solution(pause = 0.05)
 
 
 

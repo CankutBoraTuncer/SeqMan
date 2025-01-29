@@ -14,7 +14,7 @@ def SeqMan(task, O:list):
     #C0.view_close()
     
     ry.params_add({
-        "rrt/stepsize": 0.5,
+        "rrt/stepsize": 0.01,
         "rrt/verbose": -1,
     })
 
@@ -71,12 +71,12 @@ def SeqMan(task, O:list):
                 if feasible and not rej(L, xf.C, O):                      # Check if subgoal is config is feasible and not rejected
                     L.append(xf)                                           # Add the subgoal to the list of nodes
             
-            # config_temp       = ry.Config()
-            # config_temp.addConfigurationCopy(x.C)
-            # for i, z in enumerate(Z):
-            #     config_temp.addFrame(f"subgoal{i}", "world", "shape:ssBox, size:[0.2 0.2 .05 .005], color:[1. .3 .3 0.9], contact:0, logical:{table}").setPosition([z.og])
+            config_temp       = ry.Config()
+            config_temp.addConfigurationCopy(x.C)
+            for i, z in enumerate(Z):
+                config_temp.addFrame(f"subgoal{i}", "world", "shape:ssBox, size:[0.2 0.2 .05 .005], color:[1. .3 .3 0.9], contact:0, logical:{table}").setPosition([z.og])
                 
-            # config_temp.view(True)
+            config_temp.view(True)
 
     if not is_solved:
         print("No solution found")
