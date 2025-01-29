@@ -99,7 +99,7 @@ class SeGMan():
 
         # Cluster the pairs based on the path similarity
         self.OP = self.weight_collision_pairs(obstacle_pair_path)
-
+        self.verbose = 2
         max_iter = 500
         idx = 0
         N = []
@@ -634,6 +634,7 @@ class SeGMan():
             Ct.setJointState(js)
         for n in range(N):
             # Find feasible path between configurations
+            step_size /= (n+1)
             if verbose > 1:
                 print(f"Trying RRT for {n}")
             with self.suppress_stdout():
