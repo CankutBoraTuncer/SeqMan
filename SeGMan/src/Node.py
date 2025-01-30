@@ -1,7 +1,7 @@
 import robotic as ry
-
+import random 
 class Node():
-    def __init__(self, C:ry.Config, pair:list, parent:"Node"=None, layer:int=1, FS:list=[], total_score:float=float("-inf"), prev_scene_scores:dict={}, init_scene_scores:dict={}):
+    def __init__(self, C:ry.Config, pair:list, parent:"Node"=None, layer:int=1, FS:list=[], total_score:float=float("-inf"), prev_scene_scores:dict={}, init_scene_scores:dict={}, moved_obj:str=""):
         self.C = ry.Config()
         self.C.addConfigurationCopy(C)
         self.pair = pair
@@ -14,6 +14,8 @@ class Node():
         self.global_scene_score = 0
         self.temporal_scene_score = 0
         self.parent = parent
+        self.moved_obj = moved_obj
+        self.id = random.randint(0, 1000000)
 
     def __str__(self):
         return "Node: layer={}, visit={}, pair={}, total_score={}".format(self.layer, self.visit, self.pair, self.total_score)
