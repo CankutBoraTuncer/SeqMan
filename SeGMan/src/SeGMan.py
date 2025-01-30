@@ -14,6 +14,7 @@ from dataclasses import dataclass
 import networkx as nx
 from dtaidistance import dtw
 import copy 
+from dtw import dtw
 
 @dataclass
 class Pair:
@@ -96,12 +97,12 @@ class SeGMan():
         self.obstacle_pairs = self.generate_obs_pairs()
 
         # Check which pairs are not relevant with the source of failure
-        #obstacle_pair_path = self.find_collision_pairs(type, self.obstacle_pairs)
-        pair_clusters = self.find_collision_pairs_v2(N=3)
+        obstacle_pair_path = self.find_collision_pairs(type, self.obstacle_pairs)
+        #pair_clusters = self.find_collision_pairs_v2(N=3)
 
         # Cluster the pairs based on the path similarity
-        #self.OP = self.weight_collision_pairs(obstacle_pair_path)
-        self.OP = self.weight_collision_pairs_v2(pair_clusters)
+        self.OP = self.weight_collision_pairs(obstacle_pair_path)
+        #self.OP = self.weight_collision_pairs_v2(pair_clusters)
         
         max_iter = 500
         idx = 0
@@ -180,39 +181,62 @@ class SeGMan():
     def weight_collision_pairs(self, pair_path:dict): 
 
         # Make all arrays the same length
-        min_length = min(len(value) for value in pair_path.values())
-        pair_path = {key: value[:min_length] for key, value in pair_path.items()}
+        #min_length = min(len(value) for value in pair_path.values())
+        #pair_path = {key: value[:min_length] for key, value in pair_path.items()}
 
         # Extract keys and values
         path_names = list(pair_path.keys())
         path_values = list(pair_path.values())
 
-        # Compute pairwise Fréchet distances
-        n = len(path_values)
-        distance_matrix = np.zeros((n, n))
-
-        for i in range(n):
-            for j in range(i + 1, n):
-                distance = frdist(path_values[i], path_values[j])
-                distance_matrix[i, j] = distance
-                distance_matrix[j, i] = distance
+        ## Compute pairwise Fréchet distances
+        #n = len(path_values)
+        #distance_matrix = np.zeros((n, n))
+        #for i in range(n):
+        #    for j in range(i + 1, n):
+        #        distance = frdist(path_values[i], path_values[j])
+        #        distance_matrix[i, j] = distance
+        #        distance_matrix[j, i] = distance
 
         # Compute pairwise DTW distances
+        from fastdtw import fastdtw
+        from scipy.spatial.distance import euclidean
+
         n = len(path_values)
         distance_matrix2 = np.zeros((n, n))
         for i in range(n):
             for j in range(i, n):
-                distance = dtw.distance(path_values[i].flatten(), path_values[j].flatten())
-                distance_matrix2[i, j] = distance
-                distance_matrix2[j, i] = distance
+                # Ensure both sequences remain 2D
+                seq1 = np.array(path_values[i])  # Shape (m, 2)
+                seq2 = np.array(path_values[j])  # Shape (m, 2)
+
+                # Compute FastDTW distance using Euclidean metric
+                dist, _ = fastdtw(seq1, seq2, dist=euclidean)
+
+                distance_matrix2[i, j] = dist
+                distance_matrix2[j, i] = dist  # Symmetric matrix
+
+        # Normalize the matrix (Min-Max normalization)
+        min_val = np.min(distance_matrix2[np.nonzero(distance_matrix2)])  # Ignore zeros
+        max_val = np.max(distance_matrix2)
+
+        if max_val > min_val:
+            distance_matrix2 = (distance_matrix2 - min_val) / (max_val - min_val)
+
+
+        print(path_names)
+        import pandas as pd
+        df = pd.DataFrame(distance_matrix2)
+        print(df)
 
         # Build the directed similarity graph
         directed_graph = nx.DiGraph()
         for i in range(n):
+            directed_graph.add_node(path_names[i])
             distances = distance_matrix2[i]
             distances[i] = np.inf  # Exclude self-distance
             closest_idx = np.argmin(distances)
-            directed_graph.add_edge(path_names[i], path_names[closest_idx])
+            closest_dist = distances[closest_idx]
+            #directed_graph.add_edge(path_names[i], path_names[closest_idx])
             for j, dist in enumerate(distances):
                 # 0.45 is a threshold for similarity
                 if dist < 0.2:
@@ -241,10 +265,10 @@ class SeGMan():
                 pair_size = len(name)
                 num_references = directed_graph.in_degree(name)  # Count incoming edges
                 pair_score = 1 / pair_size
-                core_score = 2 if core_pair == name else 1
-                final_score = core_score * pair_score * normalized_cluster_size
+                core_score = 2 if core_pair == name else 0
+                final_score = core_score * pair_score / normalized_cluster_size
                 weighted_obstacle_pairs.append(Pair(objects=[*name], weight=final_score)) 
-                if self.verbose > 1:
+                if self.verbose > 0:
                     print(f"Pair: {name}, Cluster Size: {cluster_size}, Pair Size: {pair_size}, Num References: {num_references}, Pair Score: {pair_score}, Score: {final_score:.4f}")
 
         weighted_obstacle_pairs = sorted(weighted_obstacle_pairs, key=lambda pair: pair.weight, reverse=True)
@@ -571,19 +595,36 @@ class SeGMan():
             if self.verbose > 0:
                 print(f"Trying: {op}")
             
+            avg_pos = [0, 0]
+            window = 0
+
             for o in op:
                 Ct.frame(o).setContact(0)
-            
+                avg_pos += Ct.frame(o).getPosition()[0:2]
+            avg_pos /= len(op)
+
             Ct.frame(self.obj).setContact(0)
 
             f = False
             if type == 0:
-                f, path = self.run_rrt(Ct, goal, [], self.verbose, N=3)
+                f, path = self.run_rrt(Ct, goal, [], self.verbose, N=1, step_size=0.05)
             else:
                 f, path = self.find_place_path(Ct, goal, self.verbose, N=3)
 
             if f:
-                pair_path[tuple(op)] = path
+                
+                #index = min(
+                #    range(len(path)),
+                #    key=lambda i: math.dist(path[i], (avg_pos[0], avg_pos[1]))
+                #)
+
+                #if index != None:
+                #    window = 30
+                #    start = max(0, index - window)  
+                #    end = min(len(path), index + window + 1)
+                #    pair_path[tuple(op)] = path[start:end]
+                
+                pair_path[tuple(op)] = np.round(path, 2)
 
             if self.verbose > 1:
                 print(f"Is {op} blocking path: {f}")
@@ -799,7 +840,7 @@ class SeGMan():
                     FS.append(Ct.getFrameState())
                     if verbose > 1:
                         Ct.view(False, "RRT Solution")
-                        time.sleep(0.05)
+                        time.sleep(0.01)
                 Ct.view_close()
                 return True, path
         return False, None
