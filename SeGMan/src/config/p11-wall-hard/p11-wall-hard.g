@@ -31,6 +31,6 @@ obj2(obj2Joint) {
 
 obj3Joint(world){ Q:[0 0 0.1] } # works
 obj3(obj3Joint) {
-    shape:ssBox, Q:[1.1 -1.6 0], size:[.1 .5 .2 .02], logical={ object } nomass:1,  color:[0 0 1],
+    shape:ssBox, Q:[1.1 -1.6 0], size:[.1 .6 .2 .02], logical={ object } nomass:1,  color:[0 0 1],
     joint:rigid, friction:.1  contact: 1
 }

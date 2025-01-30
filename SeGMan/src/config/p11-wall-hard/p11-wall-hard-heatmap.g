@@ -68,19 +68,19 @@ obj2_cam_rel(obj2): { X: [1.5, -0.8, 2.1,   0.00040292,  -0.99999992,   0.000000
 
 obj3Joint(world){ Q:[1.1 -1.6 0.1] } # works
 obj3(obj3Joint) {
-    shape:ssBox, size:[.1 .5 .2 .02], logical={ object } nomass:1,  color:[1 1 1],
+    shape:ssBox, size:[.1 .6 .2 .02], logical={ object } nomass:1,  color:[1 1 1],
     joint:rigid, friction:.1  contact: 1
 }
 obj3_hm_r(obj3) {
-    shape:ssBox, Q:[0 0 0], size:[.1 .5 .6 .02], logical={ object } nomass:1,  color:[1 0 0 ],
+    shape:ssBox, Q:[0 0 0], size:[.1 .6 .6 .02], logical={ object } nomass:1,  color:[1 0 0 ],
     joint:rigid, friction:.1  contact: 1
 }
 obj3_hm_b(world) {
-    shape:ssBox, Q:[1.1 -1.6 0.1], size:[.1 .5 .3 .02], logical={ object } nomass:1,  color:[0 0 1 ],
+    shape:ssBox, Q:[1.1 -1.6 0.1], size:[.1 .6 .3 .02], logical={ object } nomass:1,  color:[0 0 1 ],
     joint:rigid, friction:.1  contact: 1
 }
 obj3_hm_y(obj3) {
-    shape:ssBox, Q:[0 0 0], size:[.2 .6 .4 .02], logical={ object } nomass:1,  color:[1 1 0 ],
+    shape:ssBox, Q:[0 0 0], size:[.2 .7 .4 .02], logical={ object } nomass:1,  color:[1 1 0 ],
     joint:rigid, friction:.1  contact: 1
 }
 obj3_cam_g(world): { rel: [1.1, -1.6, 2,   0.00040292,  -0.99999992,   0.00000000,   0.00000000 ], shape: marker, size: [0.1], width: 30, height: 30, focalLength: 1, zRange: [0.5, 3]  },
