@@ -12,9 +12,10 @@ import numpy as np
 from frechetdist import frdist
 from dataclasses import dataclass
 import networkx as nx
-from dtaidistance import dtw
 import copy 
-from dtw import dtw
+from fastdtw import fastdtw
+from scipy.spatial.distance import euclidean
+import pandas as pd
 
 @dataclass
 class Pair:
@@ -45,7 +46,7 @@ class SeGMan():
             step_size = 0.05
 
             # Find a feasible pick configuration and path
-            f, _ = self.find_pick_path(self.C, self.agent, self.obj, self.FS, self.verbose, wp_f=wp_f, K=2, N=1)
+            f, _ = self.find_pick_path(self.C, self.agent, self.obj, self.FS, self.verbose, wp_f=wp_f, K=1, N=1)
             
             # If it is not possible to go check if there is an obstacle that can be removed
             if not f: 
@@ -139,7 +140,9 @@ class SeGMan():
             if type==0 and node.id != prev_node_id:
                 if self.verbose > 0:
                     print("Checking if configuration is feasible")
-                f, _ = self.find_pick_path(node.C, self.agent, self.obj, node.FS, self.verbose, K=1, N=2)
+                node.C.view(True, "")
+                node.C.view_close()
+                f, _ = self.find_pick_path(node.C, self.agent, self.obj, node.FS, self.verbose, K=3, N=1)
                 if f:
                     tac = time.time()
                     print("Time: ", tac-tic)
@@ -158,13 +161,17 @@ class SeGMan():
             for o in node.pair:
                 is_reach, reach_P = self.is_reachable(node, o)
                 if not is_reach:
+                    node.reachable_objs.remove(o)   
                     continue
-                any_reach = True
 
-                node.moved_pair = o
+                any_reach = True
+                node.moved_obj = o
+
+                if self.verbose > 0:
+                    print(f"Object {o} is REACHABLE")
 
                 # For the reachable object, generate subgoals
-                self.generate_subnode(node, o, N, P=reach_P, sample_count=4, radius=0.6)
+                self.generate_subnode(node, o, N, P=reach_P, sample_count=10, radius=1)
            
             if not any_reach:
                 if self.verbose > 0:
@@ -180,27 +187,11 @@ class SeGMan():
 
     def weight_collision_pairs(self, pair_path:dict): 
 
-        # Make all arrays the same length
-        #min_length = min(len(value) for value in pair_path.values())
-        #pair_path = {key: value[:min_length] for key, value in pair_path.items()}
-
         # Extract keys and values
         path_names = list(pair_path.keys())
         path_values = list(pair_path.values())
 
-        ## Compute pairwise Fréchet distances
-        #n = len(path_values)
-        #distance_matrix = np.zeros((n, n))
-        #for i in range(n):
-        #    for j in range(i + 1, n):
-        #        distance = frdist(path_values[i], path_values[j])
-        #        distance_matrix[i, j] = distance
-        #        distance_matrix[j, i] = distance
-
         # Compute pairwise DTW distances
-        from fastdtw import fastdtw
-        from scipy.spatial.distance import euclidean
-
         n = len(path_values)
         distance_matrix2 = np.zeros((n, n))
         for i in range(n):
@@ -208,25 +199,20 @@ class SeGMan():
                 # Ensure both sequences remain 2D
                 seq1 = np.array(path_values[i])  # Shape (m, 2)
                 seq2 = np.array(path_values[j])  # Shape (m, 2)
-
                 # Compute FastDTW distance using Euclidean metric
                 dist, _ = fastdtw(seq1, seq2, dist=euclidean)
-
                 distance_matrix2[i, j] = dist
                 distance_matrix2[j, i] = dist  # Symmetric matrix
-
         # Normalize the matrix (Min-Max normalization)
         min_val = np.min(distance_matrix2[np.nonzero(distance_matrix2)])  # Ignore zeros
         max_val = np.max(distance_matrix2)
-
         if max_val > min_val:
             distance_matrix2 = (distance_matrix2 - min_val) / (max_val - min_val)
 
-
-        print(path_names)
-        import pandas as pd
-        df = pd.DataFrame(distance_matrix2)
-        print(df)
+        if self.verbose > 1:
+            print(path_names)
+            df = pd.DataFrame(distance_matrix2)
+            print(df)
 
         # Build the directed similarity graph
         directed_graph = nx.DiGraph()
@@ -234,12 +220,12 @@ class SeGMan():
             directed_graph.add_node(path_names[i])
             distances = distance_matrix2[i]
             distances[i] = np.inf  # Exclude self-distance
-            closest_idx = np.argmin(distances)
-            closest_dist = distances[closest_idx]
+            #closest_idx = np.argmin(distances)
+            #closest_dist = distances[closest_idx]
             #directed_graph.add_edge(path_names[i], path_names[closest_idx])
             for j, dist in enumerate(distances):
-                # 0.45 is a threshold for similarity
-                if dist < 0.2:
+                # 0.25 is a threshold for similarity
+                if dist < 0.25:
                     directed_graph.add_edge(path_names[i], path_names[j])
 
         # Find weakly connected components (clusters disregarding direction)
@@ -255,7 +241,7 @@ class SeGMan():
         weighted_obstacle_pairs = []
         for cluster, cluster_size in zip(clusters, cluster_sizes):
             # Normalize cluster size
-            normalized_cluster_size = cluster_size / max_cluster_size
+            normalized_cluster_size = math.sqrt(cluster_size / max_cluster_size)
 
             # Find the smallest pair in the cluster (the core pair which exists in all pairs)
             core_pair = min(cluster, key=len)
@@ -265,15 +251,16 @@ class SeGMan():
                 pair_size = len(name)
                 num_references = directed_graph.in_degree(name)  # Count incoming edges
                 pair_score = 1 / pair_size
-                core_score = 2 if core_pair == name else 0
+                core_score = 2 if core_pair == name else 1
                 final_score = core_score * pair_score / normalized_cluster_size
                 weighted_obstacle_pairs.append(Pair(objects=[*name], weight=final_score)) 
                 if self.verbose > 0:
-                    print(f"Pair: {name}, Cluster Size: {cluster_size}, Pair Size: {pair_size}, Num References: {num_references}, Pair Score: {pair_score}, Score: {final_score:.4f}")
+                    print(f"Pair: {name}, Cluster Size: {cluster_size}, Core Score: {core_score}, Pair Size: {pair_size},"
+                           f"Num References: {num_references}, Pair Score: {pair_score}, Score: {final_score:.4f}")
 
         weighted_obstacle_pairs = sorted(weighted_obstacle_pairs, key=lambda pair: pair.weight, reverse=True)
 
-        if self.verbose > -1:
+        if self.verbose > 1:
             # Create and visualize the directed graph using networkx
             plt.figure(figsize=(12, 8))
             pos = nx.spring_layout(directed_graph)  # Layout for better visualization
@@ -352,7 +339,7 @@ class SeGMan():
         for node in N:
             if isFirst:
                 self.node_score(node)
-            elif node == prev_node:
+            elif prev_node != None and node.pair == prev_node.pair:
                 self.node_score(node)
                 
             if node.total_score > best_score:
@@ -374,9 +361,9 @@ class SeGMan():
         Ct.addConfigurationCopy(self.C_hm)
 
         c0 = 8
-        c1 = 2e-2
-        gamma = 0.4
-        weight_discount = 0.8
+        c1 = 5e-3
+        gamma = 0.3
+        weight_discount = 0.9
 
         for o in node.pair:
             Ct.frame(o).setPosition(node.C.frame(o).getPosition())
@@ -423,6 +410,7 @@ class SeGMan():
         
         global_scene_score /= len(node.pair)
         temporal_scene_score /= len(node.pair)
+        reachability = math.sqrt(len(node.reachable_objs) / len(node.pair))
 
         # Just adjusting the visit count
         if node.total_score != float('-inf'):
@@ -436,7 +424,7 @@ class SeGMan():
 
         weighted_scene_score = ((1-gamma) * temporal_scene_score + gamma * global_scene_score) / (30*30*3*c1)
 
-        exploitation = weighted_scene_score * node_weight
+        exploitation = weighted_scene_score * node_weight 
         exploration  = c0 * math.sqrt(math.log(1+parent_visit) / visit)
         total_node_score = exploitation + exploration
         
@@ -444,7 +432,7 @@ class SeGMan():
         
         if self.verbose > 0:
             print("Scored Node: ", node)
-            if self.verbose > 1:
+            if self.verbose > 0:
                 print("Global Scene Score: ", global_scene_score, "Temporal Scene Score: ", temporal_scene_score)
                 print(f"Exploitation: {exploitation}, Exploration: {exploration}, Total Score: {total_node_score}")
             
@@ -478,7 +466,6 @@ class SeGMan():
 # -------------------------------------------------------------------------------------------------------------- #
 
     def generate_subnode(self, node:Node, o:str, N:list, P:list=[], sample_count:int = 30, radius:int=0.6):
-
         
         if self.verbose > 0:
             print("Generate subgoals")
@@ -509,9 +496,9 @@ class SeGMan():
             r = random.uniform(0.1, radius)  
             obj_pos_n = [obj_pos[0] + r * math.cos(angle), obj_pos[1] + r * math.sin(angle), obj_pos[2]]
 
-            if all(math.dist(obj_pos_n, p) >= min_dist for p in moved_pos):
+            if all(math.dist(obj_pos_n, p) >= min_dist*1.5 for p in moved_pos):
                 moved_pos.append(obj_pos_n)
-
+                
                 Ct.addFrame("cur_pos", "world", "shape: marker, size: [0.1]").setPosition(obj_pos_n)
                 komo = ry.KOMO(Ct, phases=2, slicesPerPhase=10, kOrder=2, enableCollisions=True)                            # Initialize LGP
                 
@@ -558,8 +545,6 @@ class SeGMan():
             return True, P
         
         is_reachable, _ = self.find_pick_path(node.C, self.agent, o, P, self.verbose, K=1, N=1)  
-        if is_reachable and self.verbose > 0:
-            print(f"Object {o} is REACHABLE")
         return is_reachable, P
 
 # -------------------------------------------------------------------------------------------------------------- #
@@ -595,13 +580,8 @@ class SeGMan():
             if self.verbose > 0:
                 print(f"Trying: {op}")
             
-            avg_pos = [0, 0]
-            window = 0
-
             for o in op:
                 Ct.frame(o).setContact(0)
-                avg_pos += Ct.frame(o).getPosition()[0:2]
-            avg_pos /= len(op)
 
             Ct.frame(self.obj).setContact(0)
 
@@ -612,18 +592,6 @@ class SeGMan():
                 f, path = self.find_place_path(Ct, goal, self.verbose, N=3)
 
             if f:
-                
-                #index = min(
-                #    range(len(path)),
-                #    key=lambda i: math.dist(path[i], (avg_pos[0], avg_pos[1]))
-                #)
-
-                #if index != None:
-                #    window = 30
-                #    start = max(0, index - window)  
-                #    end = min(len(path), index + window + 1)
-                #    pair_path[tuple(op)] = path[start:end]
-                
                 pair_path[tuple(op)] = np.round(path, 2)
 
             if self.verbose > 1:

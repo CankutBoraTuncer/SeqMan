@@ -16,6 +16,7 @@ class Node():
         self.parent = parent
         self.moved_obj = moved_obj
         self.id = random.randint(0, 1000000)
+        self.reachable_objs = pair
 
     def __str__(self):
         return "Node: layer={}, visit={}, pair={}, total_score={}".format(self.layer, self.visit, self.pair, self.total_score)

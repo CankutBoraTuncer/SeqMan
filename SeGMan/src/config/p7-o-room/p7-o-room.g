@@ -1,8 +1,8 @@
 Include: <../base-walls-min.g>
 
-egoJoint(world){ Q:[1.7 0.0 0.1] } # works
+egoJoint(world){ Q:[0 0.0 0.1] } # works
 ego(egoJoint) {
-    shape:ssCylinder, size:[.2 .2 .02], color:[0.96875 0.7421875 0.30859375], logical:{gripper}, limits: [-4 4 -4 4], sampleUniform:1,
+    shape:ssCylinder, Q:[1.7 0.0 0], size:[.2 .2 .02], color:[0.96875 0.7421875 0.30859375], logical:{gripper}, limits: [-4 4 -4 4], sampleUniform:1,
     joint:transXY, contact: 1
 }
 
