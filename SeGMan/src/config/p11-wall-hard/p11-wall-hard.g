@@ -2,7 +2,7 @@ Include: <../base-walls-min.g>
 
 goal (floor){ shape:ssBox, Q:"t(-1.2 1.3 .0)", size:[0.2 0.2 .1 .005], color:[1. .3 .3 0.9], contact:0, logical:{table} }
 goal_visible (floor) 	{ shape:ssBox, Q:"t(-1.2 1.3 0.1)", size:[0.2 0.2 0.1 0.005], color:[1. .3 .3] }
-wall2_h (world){ shape:ssBox, Q:"t(-0.05 -1.2 0.3)", size:[2.8 .1 0.6 .02], color:[0.6953 0.515625 .453125],contact: 1 }
+wall2_h (world){ shape:ssBox, Q:"t(-0.05 -1.2 0.3)", size:[2.5 .1 0.6 .02], color:[0.6953 0.515625 .453125],contact: 1 }
 wall8_h (world){ shape:ssBox, Q:"t(-1.45 1.0 0.3)", size:[1.0 .1 0.6 .02], color:[0.6953 0.515625 .453125], contact: 1 }
 
 egoJoint(world){ Q:[0 0 0.1] } # works
@@ -19,13 +19,13 @@ obj(objJoint) {
 
 obj1Joint(world){ Q:[0 0 0.1] } # works
 obj1(obj1Joint) {
-    shape:ssBox,Q:[1.6 -1 0], size:[.5 .1 .2 .02], logical={ object } nomass:1,  color:[1 0 0],
+    shape:ssBox,Q:[1.4 -1 0], size:[.7 .1 .2 .02], logical={ object } nomass:1,  color:[1 0 0],
     joint:rigid, friction:.1  contact: 1
 }
 
 obj2Joint(world){ Q:[0 0 0.1] } # works
 obj2(obj2Joint) {
-    shape:ssBox, Q:[1.5 -0.8 0], size:[.7 .1 .2 .02], logical={ object } nomass:1,  color:[0 1 0],
+    shape:ssBox, Q:[1.5 -0.85 0], size:[.7 .1 .2 .02], logical={ object } nomass:1,  color:[0 1 0],
     joint:rigid, friction:.1  contact: 1
 }
 

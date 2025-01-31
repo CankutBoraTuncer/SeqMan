@@ -22,6 +22,7 @@ class Node():
         self.id = random.randint(0, 1000000)
         self.reachable_objs = copy.deepcopy(pair)
         self.pts = []
+        self.multiplier = 1
 
     def __str__(self):
         return "Node: layer={}, visit={}, pair={}, total_score={}, id={}".format(self.layer, self.visit, self.pair, self.total_score, self.id)
