@@ -6,11 +6,7 @@ wall8_h (world){ shape:ssBox, Q:"t(-1.45 1.0 0.3)", size:[1.0 .1 0.6 .02], color
 
 #---------------------------------------------------------------------------------------------------#
 
-egoJoint(world){ Q:[1.6 -1.6 0.1] } # works
-ego(egoJoint) {
-    shape:ssCylinder, size:[.2 .2 .02], color:[1 1 1], logical:{gripper}, limits: [-4 4 -4 4], sampleUniform:1,
-    joint:transXY, contact: 1
-}
+egoJoint(world){ Q:[0.0 0.0 0.1] } # works
 
 #---------------------------------------------------------------------------------------------------#
 

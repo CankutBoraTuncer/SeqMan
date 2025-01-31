@@ -22,4 +22,4 @@ if __name__ == "__main__":
     if segman.run():
         toc = time.time()
         print("Time elapsed: {} seconds".format(toc - tic))
-        segman.display_solution(pause = 0.2)
+        segman.display_solution(pause = 0.05)

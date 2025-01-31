@@ -4,6 +4,8 @@ goal (floor){ shape:ssBox, Q:"t(-1.5 1.5 .0)", size:[0.2 0.2 .1 .005], color:[1 
 
 goal_visible (floor) 	{ shape:ssBox, Q:"t(-1.5 1.5 0.1)", size:[0.2 0.2 0.1 0.005], color:[1 1 1] }
 
+egoJoint(world){ Q:[0.0 0.0 0.1] } # works
+
 obj1Joint(world){ Q:[0.0 0.0 0.1] } # works
 obj1(obj1Joint) {
     shape:ssBox, Q:[-0.75 -1.2 .0], size:[.2 1 .2 .02], logical={ object } nomass:1,  color:[0 1.0 0],

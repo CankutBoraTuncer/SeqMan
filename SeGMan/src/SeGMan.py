@@ -36,6 +36,7 @@ class SeGMan():
         self.OP = []
         self.obstacle_pair_path = []
         self.obj_init_scene_score = {}
+        self.moved_pos = []
 
     def run(self):
         found = False
@@ -98,11 +99,11 @@ class SeGMan():
         self.obstacle_pairs = self.generate_obs_pairs()
 
         # Check which pairs are not relevant with the source of failure
-        obstacle_pair_path = self.find_collision_pairs(type, self.obstacle_pairs)
+        self.obstacle_pair_path = self.find_collision_pairs(type, self.obstacle_pairs)
         #pair_clusters = self.find_collision_pairs_v2(N=3)
 
         # Cluster the pairs based on the path similarity
-        self.OP = self.weight_collision_pairs(obstacle_pair_path)
+        self.OP = self.weight_collision_pairs(self.obstacle_pair_path)
         #self.OP = self.weight_collision_pairs_v2(pair_clusters)
         
         max_iter = 500
@@ -111,7 +112,7 @@ class SeGMan():
         for pair in self.OP:
             C_node = ry.Config()
             C_node.addConfigurationCopy(self.C)
-            root_node = Node(C_node, pair=pair.objects)
+            root_node = Node(C_node, pair=pair.objects, C_hm=self.C_hm)
             N.append(root_node)
         
         prev_node = None
@@ -120,7 +121,7 @@ class SeGMan():
             idx+=1
 
             # Select the best node
-            node = self.select_node(N, prev_node=prev_node, isFirst=isFirst)
+            node = self.select_node(N, prev_node=prev_node, obs_path=self.obstacle_pair_path, isFirst=isFirst)
             isFirst = False
             
             if self.verbose > 0:
@@ -135,14 +136,17 @@ class SeGMan():
             else:
                 prev_node_id = -1
 
+            #node.C.view(True, "Selected Node")
+            #node.C.view_close()
+
             # Check if configuration is feasible
             f = False
             if type==0 and node.id != prev_node_id:
                 if self.verbose > 0:
                     print("Checking if configuration is feasible")
-                node.C.view(True, "")
-                node.C.view_close()
-                f, _ = self.find_pick_path(node.C, self.agent, self.obj, node.FS, self.verbose, K=3, N=1)
+
+                f, _ = self.run_rrt(node.C, node.C.frame(self.obj).getPosition()[0:2], node.FS, self.verbose, N=1)
+                #f, _ = self.find_pick_path(node.C, self.agent, self.obj, node.FS, self.verbose, K=3, N=1)
                 if f:
                     tac = time.time()
                     print("Time: ", tac-tic)
@@ -161,7 +165,7 @@ class SeGMan():
             for o in node.pair:
                 is_reach, reach_P = self.is_reachable(node, o)
                 if not is_reach:
-                    node.reachable_objs.remove(o)   
+                    #node.reachable_objs.remove(o)   
                     continue
 
                 any_reach = True
@@ -171,7 +175,7 @@ class SeGMan():
                     print(f"Object {o} is REACHABLE")
 
                 # For the reachable object, generate subgoals
-                self.generate_subnode(node, o, N, P=reach_P, sample_count=10, radius=1)
+                self.generate_subnode(node, o, N, P=reach_P, sample_count=10, radius=1, pair=node.pair)
            
             if not any_reach:
                 if self.verbose > 0:
@@ -329,7 +333,7 @@ class SeGMan():
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
 
-    def select_node(self, N:list, prev_node:Node, isFirst:bool=False):
+    def select_node(self, N:list, prev_node:Node, obs_path:list=[], isFirst:bool=False):
         if self.verbose > 0:
             print("Selecting the node")
 
@@ -338,7 +342,9 @@ class SeGMan():
 
         for node in N:
             if isFirst:
-                self.node_score(node)
+                #self.verbose = 2
+                self.node_score(node, obs_path, isFirst)
+                #self.verbose = 1
             elif prev_node != None and node.pair == prev_node.pair:
                 self.node_score(node)
                 
@@ -356,20 +362,18 @@ class SeGMan():
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
 
-    def node_score(self, node:Node):
-        Ct = ry.Config()
-        Ct.addConfigurationCopy(self.C_hm)
+    def node_score(self, node:Node, obs_path:list=[], isFirst:bool=False):
 
         c0 = 8
         c1 = 5e-3
-        gamma = 0.3
+        gamma = 1
         weight_discount = 0.9
 
         for o in node.pair:
-            Ct.frame(o).setPosition(node.C.frame(o).getPosition())
+            node.C_hm.frame(o).setPosition(node.C.frame(o).getPosition())
             
         if self.verbose > 1:
-            Ct.view(True, "Changed heatmap")
+            node.C_hm.view(True, "Changed heatmap")
 
         visit = node.visit
         parent_visit = 1
@@ -380,17 +384,21 @@ class SeGMan():
         node_weight = 1
         cur_pair = None
         for p in self.OP:
-           
             if p.objects == node.pair:
                 cur_pair = p
                 node_weight = p.weight
 
+        if isFirst:
+            for i, p in enumerate(obs_path[tuple(node.pair)]):
+                obj = node.C_hm.addFrame("clone_"+str(i), "egoJoint", "shape:ssCylinder, Q:[-1.3 -1.3 0], size:[.1 .1 .02], color:[0 0 1]")
+                obj.setPosition([*p, 0.1])
+
         for o in node.pair:
             # The node is root node
-            if node.parent == None:
-                c1 = 5e-2
+            if isFirst:
                 if self.obj_init_scene_score.get(o) == None:
-                    scene_score = self.scene_score(Ct, o + "_cam_g")
+                    scene_score, pts = self.scene_score(node.C_hm, o + "_cam_g")
+                    node.pts = pts
                     self.obj_init_scene_score[o] = scene_score
                 else:
                     scene_score = self.obj_init_scene_score[o]
@@ -402,30 +410,35 @@ class SeGMan():
             else:
                 # New node
                 if node.total_score == float('-inf'):
-                    scene_score = self.scene_score(Ct, o + "_cam_g")
+                    scene_score, pts = self.scene_score(node.C_hm, o + "_cam_g")
+                    node.pts = pts
                     parent_visit = node.parent.visit
-                    global_scene_score += scene_score - node.init_scene_scores[o]
+                    global_scene_score += scene_score #- node.init_scene_scores[o]
                     temporal_scene_score += scene_score - node.prev_scene_scores[o]
                     node.prev_scene_scores[o] = scene_score
         
         global_scene_score /= len(node.pair)
+        global_scene_score *= 0.02
+
         temporal_scene_score /= len(node.pair)
-        reachability = math.sqrt(len(node.reachable_objs) / len(node.pair))
 
         # Just adjusting the visit count
         if node.total_score != float('-inf'):
             global_scene_score = node.global_scene_score
             temporal_scene_score = node.temporal_scene_score
+            if node.parent != None:
+                parent_visit = node.parent.visit
+            visit = node.visit
             if cur_pair != None:
                 cur_pair.weight *= weight_discount
         else:
             node.global_scene_score = global_scene_score
             node.temporal_scene_score = temporal_scene_score
 
-        weighted_scene_score = ((1-gamma) * temporal_scene_score + gamma * global_scene_score) / (30*30*3*c1)
-
-        exploitation = weighted_scene_score * node_weight 
-        exploration  = c0 * math.sqrt(math.log(1+parent_visit) / visit)
+        weighted_scene_score = ((1-gamma) * temporal_scene_score + gamma * global_scene_score) 
+    
+        exploitation = weighted_scene_score * math.sqrt(node_weight)
+        exploration  = c0 * math.log(1+parent_visit) / visit
         total_node_score = exploitation + exploration
         
         node.total_score = total_node_score
@@ -465,49 +478,65 @@ class SeGMan():
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
 
-    def generate_subnode(self, node:Node, o:str, N:list, P:list=[], sample_count:int = 30, radius:int=0.6):
+    def generate_subnode(self, node:Node, o:str, N:list, P:list=[], sample_count:int = 30, radius:int=0.6, pair:list=[]):
         
         if self.verbose > 0:
             print("Generate subgoals")
 
+
+        Ct = ry.Config()
+        Ct.addConfigurationCopy(node.C)
+
         obj_pos = node.C.frame(o).getPosition()
         feas_count = 0
         err_count = 0
-        err_lim = 10
-        min_dist = 0.1
-        moved_pos = []
+        err_lim = 4
+        min_dist = 0.2
+        
         #self.verbose = 2
-  
-        for _ in range(sample_count*3):
-            
-            if self.verbose > 0:
-                print(f"Subnode: {feas_count} / {sample_count}")
 
+        if len(self.moved_pos) == 0:
+            for n in N:
+                if n.pair == node.pair:
+                    self.moved_pos.append(n.C.frame(o).getPosition())
+
+        fs_base = copy.deepcopy(node.FS)
+        if len(P) > 0:
+            for p in P:
+                fs_base.append(p)
+                Ct.setFrameState(p)
+
+        for _ in range(math.floor(sample_count*3)):
             Ct = ry.Config()
             Ct.addConfigurationCopy(node.C)
-            fs = copy.deepcopy(node.FS)
 
-            if len(P) > 0:
-                for p in P:
-                    fs.append(p)
-                    Ct.setFrameState(p)
 
-            angle = random.uniform(0, 2 * math.pi)  
-            r = random.uniform(0.1, radius)  
-            obj_pos_n = [obj_pos[0] + r * math.cos(angle), obj_pos[1] + r * math.sin(angle), obj_pos[2]]
 
-            if all(math.dist(obj_pos_n, p) >= min_dist*1.5 for p in moved_pos):
-                moved_pos.append(obj_pos_n)
-                
+            #angle = random.uniform(0, 2 * math.pi)  
+            #r = random.uniform(0.1, radius)  
+            index = random.randint(0, len(node.pts)-1)
+            obj_pos_n = node.pts[index]
+            obj_pos_n = [obj_pos_n[0], obj_pos_n[1], obj_pos[2]]
+
+            if all(math.dist(obj_pos_n, p) >= min_dist for p in self.moved_pos):
+                self.moved_pos.append(obj_pos_n)
+
+                if self.verbose > 0:
+                    print(f"Subnode: {feas_count} / {sample_count}")
+
                 Ct.addFrame("cur_pos", "world", "shape: marker, size: [0.1]").setPosition(obj_pos_n)
-                komo = ry.KOMO(Ct, phases=2, slicesPerPhase=10, kOrder=2, enableCollisions=True)                            # Initialize LGP
+                #Ct.addFrame("init_pos", "world", "shape: marker, size: [0.1]").setPosition([*self.obstacle_pair_path[tuple(pair)][0], obj_pos[2]])
                 
+                komo = ry.KOMO(Ct, phases=2, slicesPerPhase=30, kOrder=2, enableCollisions=True)                            # Initialize LGP
                 komo.addControlObjective([], 1, 1e-1)
                 komo.addControlObjective([], 2, 1e-1)
-                komo.addObjective([], ry.FS.accumulatedCollisions, [], ry.OT.eq, scale=1e3)                                                                                        # Randomize the initial configuration
+                komo.addObjective([], ry.FS.accumulatedCollisions, [], ry.OT.eq, scale=1e2)                                                                                        # Randomize the initial configuration
                 komo.addObjective([0,1], ry.FS.distance, [self.agent, o], ry.OT.eq, scale=1e2, target=0)                                     # Pick
                 komo.addModeSwitch([1,2], ry.SY.stable, [self.agent, o], True)   
                 komo.addObjective([1,2] , ry.FS.positionDiff, [o, "cur_pos"], ry.OT.sos, scale=1e1)  # Place constraints 
+                #komo.addModeSwitch([2,3], ry.SY.stable, ["floor", o], False)  
+                #komo.addObjective([2,3] , ry.FS.positionDiff, [self.agent, "init_pos"], ry.OT.sos, scale=1e0)  # Place constraints 
+                #komo.addObjective([1,2] , ry.FS.quaternionDiff, [o, "cur_pos"], ry.OT.sos, scale=1e-2, target=0.1)  # Place constraints 
                 ret = ry.NLP_Solver(komo.nlp(), verbose=0).solve() 
                 Ct.delFrame("cur_pos")
 
@@ -515,22 +544,33 @@ class SeGMan():
                     komo.view_play(True, f"Subgoal Generation Solution: {ret.feasible}")
                 
                 if ret.feasible:
-    
-                        for p in komo.getPathFrames():
-                            fs.append(p)
-                            Ct.setFrameState(p)
-                            #Ct.view(True, "Subgoal Generation Solution")
-                        
-                        new_node = Node(C=Ct, pair=node.pair, parent=node, layer=node.layer+1, FS=fs, init_scene_scores=node.init_scene_scores, prev_scene_scores=node.prev_scene_scores, moved_obj=o)
-                        self.node_score(new_node)
-                        N.append(new_node)
-                        feas_count += 1
+                        path_frames=komo.getPathFrames()
+                        Ct.setFrameState(path_frames[-1])
+                        #Ct.view(True, "New Node")
+                        #Ct.view_close()
+                        f, _ = self.run_rrt(Ct, self.obstacle_pair_path[tuple(pair)][0], [], self.verbose, N=1)
+                        if f:
+                            fs = copy.deepcopy(fs_base)
+                            for p in path_frames:
+                                fs.append(p)
+                                Ct.setFrameState(p)
+                                #Ct.view(True, "Subgoal Generation Solution")
+                            #self.verbose = 2
+                            new_node = Node(C=Ct, pair=node.pair, C_hm=node.C_hm, parent=node, layer=node.layer+1, FS=fs, init_scene_scores=node.init_scene_scores, prev_scene_scores=node.prev_scene_scores, moved_obj=o)
+                            self.node_score(new_node)
+                            #self.verbose = 1
+                            N.append(new_node)
+                            feas_count += 1
+                        else:
+                            err_count += 1
                 else:
                     err_count += 1
 
                 if feas_count == sample_count or err_count == err_lim:
                     return
-                    
+
+
+
 
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
@@ -544,7 +584,7 @@ class SeGMan():
         if node.moved_obj == o:
             return True, P
         
-        is_reachable, _ = self.find_pick_path(node.C, self.agent, o, P, self.verbose, K=1, N=1)  
+        is_reachable, _ = self.find_pick_path(node.C, self.agent, o, P, self.verbose, K=2, N=1)  
         return is_reachable, P
 
 # -------------------------------------------------------------------------------------------------------------- #
@@ -693,7 +733,7 @@ class SeGMan():
             S.enableAccumulatedCollisions(True)
             if len(wp_f) == 0:
                 S.addEntry([0, 1], ry.SY.touch, [agent, obj])
-                komo = S.getKomo_path(Ct, 1, 1e-1, 1e1, 1e-1, 1e2)
+                komo = S.getKomo_path(Ct, 1, 1e1, 1e-1, 1e-1, 1e2)
                 if k != 0: 
                     komo.initRandom()  
             else:
@@ -701,7 +741,7 @@ class SeGMan():
                 S.addEntry([0.1, -1], ry.SY.touch, [agent, obj])
                 S.addEntry([0.2, -1], ry.SY.stable, [agent, obj])
                 S.addEntry([0.3, 0.4], ry.SY.positionEq, ["subgoal", obj])
-                komo = S.getKomo_path(Ct, 30, 1e-1, 1e1, 1e-1, 1e2)
+                komo = S.getKomo_path(Ct, 30, 1e1, 1e-1, 1e-1, 1e2)
                 komo.initRandom()
 
             ret = ry.NLP_Solver(komo.nlp(), verbose=0).solve() 
@@ -889,23 +929,85 @@ class SeGMan():
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
 
-    def scene_score(self, C:ry.Config, cam_frame:str):
-        img = SeGMan.get_image(C, cam_frame, self.verbose)
+    def scene_score(self, C:ry.Config, cam_frame:str, o:str=""):
+        camera_view = ry.CameraView(C)
+        cam = C.getFrame(cam_frame)
+        camera_view.setCamera(cam)
+        img, depth = camera_view.computeImageAndDepth(C)
+        img = np.asarray(img)
+
+        if(self.verbose > 1):
+            fig = plt.figure()
+            fig.suptitle(f"Cam Frame: {cam_frame}", fontsize=16)
+            plt.imshow(img)
+            plt.show()
+        
+        #img, depth = SeGMan.get_image(C, cam_frame, self.verbose)
         scene_score = 0
-        for r in img:
-            for rgb in r:
-                if rgb[0] > 200 and rgb[1] < 200 and rgb[2] < 200:
-                    scene_score += 1
-                elif rgb[1] > 200 and rgb[0] > 200 and rgb[2] < 200:
+        for i, r in enumerate(img):
+            for j, rgb in enumerate(r):
+                #if rgb[0] > 200 and rgb[1] < 200 and rgb[2] < 200:
+                #    scene_score += 0
+                #elif rgb[1] > 200 and rgb[0] > 200 and rgb[2] < 200:
+                #    scene_score += 0 
+                if rgb[1] > 200 and rgb[0] < 200 and rgb[2] < 200:
                     scene_score += 2 
-                elif rgb[1] > 200 and rgb[0] < 200 and rgb[2] < 200:
-                    scene_score += 3   
                 elif rgb[0] < 200 and rgb[1] < 200 and rgb[2] > 200:
-                    scene_score += 10  
+                    scene_score += 3  
+                else:
+                    depth[i][j] = 0
+        pts = ry.depthImage2PointCloud(depth, camera_view.getFxycxy())
+        pts = self.cam_to_target(pts.reshape(-1, 3), C.getFrame("world"), cam)
+
+        if(self.verbose>1):
+            C2 = ry.Config()
+            C2.addFrame("world")
+            C.getFrame("world").setPointCloud(pts, [0,0,0])
+            C.view(True,"1")
+            C2.getFrame("world").setPointCloud(pts, [0,0,0])
+            C2.view(True,"2")
+
         if self.verbose > 1:
-            print(f"Scene score: {scene_score}")      
-        return scene_score
-    
+            print(f"Scene score: {scene_score}")  
+        
+        return scene_score, pts
+
+# -------------------------------------------------------------------------------------------------------------- #
+# -------------------------------------------------------------------------------------------------------------- #
+# -------------------------------------------------------------------------------------------------------------- #
+
+
+    @staticmethod
+    def cam_to_target(pts, cam_frame, target_frame):
+        # Camera position and rotation (in world frame)
+        t_cam_world = cam_frame.getPosition()  # (3, )
+        R_cam_world = cam_frame.getRotationMatrix()  # (3, 3)
+
+        # Target frame position and rotation (in world frame)
+        t_target_world = target_frame.getPosition()  # (3, )
+        R_target_world = target_frame.getRotationMatrix()  # (3, 3)
+
+        # Compute the transformation from camera frame to target frame
+        R_target_cam = np.dot(R_target_world, R_cam_world.T)  # (3,3) Relative rotation
+        t_target_cam = t_target_world - np.dot(R_target_world, t_cam_world)  # (3, )
+
+        # Convert points to homogeneous coordinates
+        points_camera_frame_homogeneous = np.hstack((pts, np.ones((pts.shape[0], 1))))  # (N,4)
+
+        # Construct transformation matrix (4x4)
+        transformation_matrix = np.vstack((
+            np.hstack((R_target_cam, t_target_cam.reshape(-1, 1))), 
+            np.array([0, 0, 0, 1])
+        ))  # (4,4)
+
+        # Apply transformation
+        points_target_frame_homogeneous = np.dot(transformation_matrix, points_camera_frame_homogeneous.T).T
+
+        # Extract the transformed points
+        points_target_frame = points_target_frame_homogeneous[:, :3]
+
+        return points_target_frame
+        
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
@@ -915,7 +1017,7 @@ class SeGMan():
         camera_view = ry.CameraView(C)
         cam = C.getFrame(cam_frame)
         camera_view.setCamera(cam)
-        img, _ = camera_view.computeImageAndDepth(C)
+        img, depth = camera_view.computeImageAndDepth(C)
         img = np.asarray(img)
 
         if(verbose > 1):
@@ -924,7 +1026,7 @@ class SeGMan():
             plt.imshow(img)
             plt.show()
 
-        return img
+        return img, depth
     
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
