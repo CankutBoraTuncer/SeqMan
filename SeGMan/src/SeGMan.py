@@ -40,6 +40,7 @@ class SeGMan():
         self.moved_pos = []
 
     def run(self):
+        tic_base = time.time()
         found = False
         wp_f = []
         L = 3
@@ -83,6 +84,8 @@ class SeGMan():
 
         if found:
             print("Solution found!")
+            tac_end = time.time()
+            print("Total Time: ", tac_end - tic_base)
             return True
         else:
             print("Solution not found!")
@@ -95,7 +98,7 @@ class SeGMan():
     def remove_obstacle(self, type:int):
 
         # Type 0: Agent cannot reach obj, Type: 1 Obj cannot reach goal
-        tic = time.time()
+        tic_base = time.time()
         # Generate obstacle pair
         self.obstacle_pairs = self.generate_obs_pairs()
 
@@ -106,6 +109,9 @@ class SeGMan():
         # Cluster the pairs based on the path similarity
         self.OP = self.weight_collision_pairs(self.obstacle_pair_path)
         #self.OP = self.weight_collision_pairs_v2(pair_clusters)
+        
+        tac_pair = time.time()
+        print("Time for pair generation: ", tac_pair-tic_base)
         
         max_iter = 500
         idx = 0
@@ -146,11 +152,11 @@ class SeGMan():
                 if self.verbose > 0:
                     print("Checking if configuration is feasible")
 
-                f, _ = self.run_rrt(node.C, node.C.frame(self.obj).getPosition()[0:2], node.FS, 2, N=1)
+                f, _ = self.run_rrt(node.C, node.C.frame(self.obj).getPosition()[0:2], node.FS, self.verbose, N=1)
                 #f, _ = self.find_pick_path(node.C, self.agent, self.obj, node.FS, self.verbose, K=3, N=1)
                 if f:
-                    tac = time.time()
-                    print("Time: ", tac-tic)
+                    tac_coll = time.time()
+                    print("SeGMan Time: ", tac_coll - tic_base)
                     for i in range(len(node.FS)- 10):
                         fs = node.FS[i]
                         self.FS.append(fs)
@@ -181,7 +187,7 @@ class SeGMan():
                 # For the reachable object, generate subgoals
                 # p1 -> radius: 1
                 # a3-92 -> radius: 1
-                self.generate_subnode(node, o, N, P=reach_P, sample_count=10, radius=0.8, pair=node.pair)
+                self.generate_subnode(node, o, N, P=reach_P, sample_count=3, radius=0.8, pair=node.pair)
            
             if not any_reach:
                 if self.verbose > 0:
@@ -354,7 +360,7 @@ class SeGMan():
             elif prev_node != None and node.pair == prev_node.pair:
                 self.node_score(node)
             
-            print("TESTED NODE: ", node)
+            #print("TESTED NODE: ", node)
             if node.total_score > best_score:
                 best_node = node
                 best_score = node.total_score
@@ -523,25 +529,11 @@ class SeGMan():
         # Filtering condition
         pts = copy.deepcopy(node.pts)
 
-
-        # Step 1: Pre-filter points that meet the basic conditions
-        #candidate_points = [
-        #    p for p in pts
-        #    if all(math.dist(p, moved_p) >= min_dist for moved_p in self.moved_pos)  # Distance from moved positions
-        #    and math.dist(p, obj_pos) <= radius  # Within radius
-        #]
-
-        ## Step 2: Ensure selected points are also `min_dist` apart from each other
-        #selected_points = []
-        #for p in candidate_points:
-        #    if all(math.dist(p, q) >= min_dist for q in selected_points):  # Distance from already selected points
-        #        selected_points.append(p)
-
-        #print(len(np.unique(selected_points)))
-
         pts = pts[::8]
         pts = pts[::1]
         random.shuffle(pts)
+
+        generated_nodes = []
 
         for i in range(len(pts)):
             Ct = ry.Config()
@@ -556,17 +548,11 @@ class SeGMan():
             obj_pos_n = pts[i]#random.choice(selected_points)
             
             if self.verbose > 0:
-                print(f"Trying for {i} / {len(pts)}, Error: {err_count}" )
-
-            if self.verbose > 0:
-                print(f"Subnode: {feas_count} / {sample_count}" )
+                print(f"Trying for {i} / {len(pts)}, Error: {err_count}", f"Subnode: {feas_count} / {sample_count}" )
 
             obj_mov_pos = [obj_pos_n[0], obj_pos_n[1], obj_pos[2]]
             
-            Ct.addFrame("cur_pos", "world", "shape: marker, size: [0.1]").setPosition(obj_mov_pos)
-        
-        #Ct.addFrame("init_pos", "world", "shape: marker, size: [0.1]").setPosition([*self.obstacle_pair_path[tuple(pair)][0], obj_pos[2]])
-        #"""       
+            Ct.addFrame("cur_pos", "world", "shape: marker, size: [0.1]").setPosition(obj_mov_pos)    
             komo = ry.KOMO(Ct, phases=2, slicesPerPhase=10, kOrder=2, enableCollisions=True)                            # Initialize LGP
             komo.addControlObjective([], 1, 1e-1)
             komo.addControlObjective([], 2, 1e-1)
@@ -574,10 +560,7 @@ class SeGMan():
             komo.addObjective([0,1], ry.FS.distance, [self.agent, o], ry.OT.eq, scale=1e2, target=0)                                     # Pick
             komo.addModeSwitch([1,2], ry.SY.stable, [self.agent, o], True)   
             komo.addObjective([1,2] , ry.FS.positionDiff, [o, "cur_pos"], ry.OT.sos, scale=1e0)  # Place constraints 
-            #komo.addModeSwitch([2,2.1], ry.SY.stableOn, [ "floor", o], True) 
-            #komo.addModeSwitch([2,3], ry.SY.stable, ["floor", o], False)  
-            #komo.addObjective([2,3] , ry.FS.positionDiff, [self.agent, "init_pos"], ry.OT.sos, scale=1e0)  # Place constraints 
-            #komo.addObjective([1,2] , ry.FS.quaternionDiff, [o, "cur_pos"], ry.OT.sos, scale=1e-2, target=0.1)  # Place constraints 
+
             ret = ry.NLP_Solver(komo.nlp(), verbose=0).solve() 
             Ct.delFrame("cur_pos")
 
@@ -586,16 +569,7 @@ class SeGMan():
             
             if ret.feasible:
                 path_frames=komo.getPathFrames()
-                #komo.view_play(True, f"Subgoal Generation Solution: {ret.eq < 1}, {ret.feasible}")
-                #Ct.setFrameState(path_frames[-1])
-                #Ct2.frame(self.agent).setJointState(Ct.frame(self.agent).getJointState())
-                #Ct2.frame(o).setPosition(Ct.frame(o).getPosition())
 
-
-                #Ct.getFrame(self.agent).unLink()
-                #f, _ = self.run_rrt(Ct2, self.obstacle_pair_path[tuple(pair)][0], [], self.verbose, N=1)
-                #if f:
-                
                 fs = copy.deepcopy(fs_base)
                 for p in path_frames:
                     fs.append(p)
@@ -603,15 +577,7 @@ class SeGMan():
 
                 self.moved_pos.append(Ct.frame(o).getPosition())
 
-                #Ct.view(True, "Subgoal Generation Solution")
-                #Ct.view_close()
-                #self.verbose = 2
-
                 new_node = Node(C=Ct, pair=node.pair, C_hm=node.C_hm, parent=node, layer=node.layer+1, FS=fs, init_scene_scores=node.init_scene_scores, prev_scene_scores=node.prev_scene_scores, moved_obj=o)
-                #self.verbose = 2
-
-                #Ct.view(True, "New Node")
-                #Ct.view_close()
 
                 multiplier = 1
                 Ct2 = ry.Config()
@@ -620,42 +586,29 @@ class SeGMan():
                 
                 for ob in node.pair:
                     if ob != o:
-                        print("Checking for ", ob)
+                        #print("Checking for ", ob)
                         Ct2.addFrame("cur_pos2", "world", "shape: marker, size: [0.1]").setPosition(Ct2.frame(ob).getPosition())
-                        komo2 = ry.KOMO(Ct2, phases=2, slicesPerPhase=20, kOrder=2, enableCollisions=True)                            # Initialize LGP
+                        komo2 = ry.KOMO(Ct2, phases=2, slicesPerPhase=20, kOrder=2, enableCollisions=True)                           
                         komo2.addControlObjective([], 1, 1e-1)
                         komo2.addControlObjective([], 2, 1e-1)
-                        komo2.addObjective([], ry.FS.accumulatedCollisions, [], ry.OT.eq, scale=1e2)                                                                                        # Randomize the initial configuration
-                        komo2.addObjective([0,1], ry.FS.distance, [self.agent, ob], ry.OT.eq, scale=1e2, target=0)                                     # Pick
+                        komo2.addObjective([], ry.FS.accumulatedCollisions, [], ry.OT.eq, scale=1e2)                                                                                        
+                        komo2.addObjective([0,1], ry.FS.distance, [self.agent, ob], ry.OT.eq, scale=1e2, target=0)                                     
                         komo2.addModeSwitch([1,2], ry.SY.stable, [self.agent, ob], True)   
-                        komo2.addObjective([1,2] , ry.FS.positionDiff, [ob, "cur_pos2"], ry.OT.sos, scale=1e0)  # Place constraints 
-                        #komo.initRandom()
+                        komo2.addObjective([1,2] , ry.FS.positionDiff, [ob, "cur_pos2"], ry.OT.sos, scale=1e0)  
                         ret2 = ry.NLP_Solver(komo2.nlp(), verbose=0).solve() 
-                        #komo2.view_play(True, f"Subgoal Generation Solution: {ret2.eq < 1}, {ret2.feasible}")
-                        if ret2.eq < 1:
-                            
-                            #Ct.view(True, "New Node")
-                            #Ct.view_close()                                    
+                        if ret2.eq < 1:                              
                             multiplier *= 2
                             
-                        #komo2.view_play(True, f"Subgoal Generation Solution: {ret2.feasible}")
-                #print("MULTIPLIER: ", multiplier)
                 new_node.multiplier = multiplier
                 self.node_score(new_node)
-                #self.verbose = 1
-                N.append(new_node)
+
+                generated_nodes.append(new_node)
                 feas_count += 1
-                #else:
-                #    err_count += 1
-            else:
-                err_count += 0.3
 
-            if feas_count == sample_count or err_count == err_lim:
-                print("EXİT")
-                return
-            #""" 
+        generated_nodes = sorted(generated_nodes, key=lambda n: n.total_score, reverse=True)
+        N.extend(generated_nodes[:sample_count])
 
-        #Ct.view(True, "lKSJFA")
+
 
 
 
@@ -696,7 +649,6 @@ class SeGMan():
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
     def find_collision_pairs(self, type:int, obs_pair:list):
-        tic = time.time()
         if self.verbose > 0:
             print("Finding collision pairs")
         
@@ -729,8 +681,7 @@ class SeGMan():
             if self.verbose > 1:
                 print(f"Is {op} blocking path: {f}")
 
-        tac = time.time()
-        print("Collision Pair Time: " , tac-tic)
+
 
         if self.verbose > 0:
             print(f"The blocking obstacle pairs: {pair_path.keys()}")
