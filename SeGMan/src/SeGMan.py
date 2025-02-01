@@ -9,7 +9,6 @@ import matplotlib.pyplot as plt
 import math
 import random
 import numpy as np
-from frechetdist import frdist
 from dataclasses import dataclass
 import networkx as nx
 import copy 
@@ -65,15 +64,16 @@ class SeGMan():
             # If path is cannot be followed, try with smaller step size
             for l in range(L):
                 # Check for object path
-                C2 = self.make_agent(self.C, self.obj)
-                fr, P = self.run_rrt(C2, self.goal, [], self.verbose, N=3, step_size=step_size/(l+1))
+                self.C2 = self.make_agent(self.C, self.obj)
+                fr, P = self.run_rrt(self.C2, self.goal, [], self.verbose, N=3, step_size=step_size/(l+1))
                 
                 # If it is not possible to go check if there is an obstacle that can be removed
                 if not fr: 
                     fs = False
                     # Remove obstacle
                     if len(self.obs_list) > 0:
-                        fs, _ = self.remove_obstacle(1)
+                        fs, P = self.remove_obstacle(1)
+                        self.C.setFrameState(self.FS[-1])
                     if not fs:
                         return
 
@@ -157,24 +157,28 @@ class SeGMan():
             if type==0 and node.id != prev_node_id:
                 if self.verbose > 0:
                     print("Checking if configuration is feasible")
-
                 f, _ = self.run_rrt(node.C, node.C.frame(self.obj).getPosition()[0:2], node.FS, self.verbose, N=1)
-                #f, _ = self.find_pick_path(node.C, self.agent, self.obj, node.FS, self.verbose, K=3, N=1)
                 if f:
                     tac_coll = time.time()
                     print("SeGMan Time: ", tac_coll - tic_base)
                     for i in range(len(node.FS)- 10):
                         fs = node.FS[i]
-                        self.FS.append(fs)
-
-                    #self.display_solution(self.FS)    
+                        self.FS.append(fs)  
                     return True, self.FS
+                
             elif type==1 and node.id != prev_node_id:
-                f, P  = self.find_place_path(node.C, node.C.frame(self.obj).getPosition()[0:2], self.verbose, N=2)
+                C2 = self.make_agent(node.C, self.obj)
+                f, path = self.run_rrt(C2, self.goal, [], self.verbose, N=1, step_size=0.05)
+
                 if f:
                     tac_coll = time.time()
                     print("SeGMan Time: ", tac_coll - tic_base)
-                    return True, P     
+                    for i in range(len(node.FS)):
+                        fs = node.FS[i]
+                        self.FS.append(fs) 
+
+                    #self.display_solution(self.FS)
+                    return True, path     
             
             prev_node = node
 
@@ -203,7 +207,7 @@ class SeGMan():
                 N.remove(node)
                 prev_node = None
 
-        return False
+        return False, None
     
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
@@ -276,7 +280,7 @@ class SeGMan():
                 num_references = directed_graph.in_degree(name)  # Count incoming edges
                 pair_score = 1 / pair_size
                 core_score = 2 if core_pair == name else 1
-                final_score = core_score * pair_score / normalized_cluster_size
+                final_score = core_score * pair_score * normalized_cluster_size
                 weighted_obstacle_pairs.append(Pair(objects=[*name], weight=final_score)) 
                 if self.verbose > 0:
                     print(f"Pair: {name}, Cluster Size: {cluster_size}, Core Score: {core_score}, Pair Size: {pair_size},"
@@ -606,7 +610,9 @@ class SeGMan():
                         ret2 = ry.NLP_Solver(komo2.nlp(), verbose=0).solve() 
                         if ret2.eq < 1:                              
                             multiplier *= 2
-                            
+                        Ct2.delFrame("cur_pos2")
+
+                        #komo2.view_play(True, f"{ret2.eq}")
                 new_node.multiplier = multiplier
                 self.node_score(new_node)
 
@@ -660,12 +666,16 @@ class SeGMan():
         if self.verbose > 0:
             print("Finding collision pairs")
         
-        goal = self.C.frame(self.obj).getPosition()[0:2]
+        
         pair_path = {}
-
+        obj_goal = self.C.frame(self.obj).getPosition()[0:2]
         for _, op in enumerate(obs_pair):
             Ct = ry.Config()
-            Ct.addConfigurationCopy(self.C)
+            if type == 0:
+                Ct.addConfigurationCopy(self.C)
+                Ct.frame(self.obj).setContact(0)
+            else:
+                Ct.addConfigurationCopy(self.C2)
 
             path = []
 
@@ -675,14 +685,14 @@ class SeGMan():
             for o in op:
                 Ct.frame(o).setContact(0)
 
-            Ct.frame(self.obj).setContact(0)
+            
 
             f = False
             if type == 0:
-                f, path = self.run_rrt(Ct, goal, [], self.verbose, N=1, step_size=0.05)
-            else:
-                f, path = self.find_place_path(Ct, goal, self.verbose, N=3)
-
+                f, path = self.run_rrt(Ct, obj_goal, [], self.verbose, N=1, step_size=0.05)
+            elif type == 1:
+                f, path = self.run_rrt(Ct, self.goal, [], self.verbose, N=1, step_size=0.05)
+            
             if f:
                 pair_path[tuple(op)] = np.round(path, 2)
 
@@ -797,8 +807,6 @@ class SeGMan():
                 komo = S.getKomo_path(Ct, 30, 1e1, 1e-1, 1e-1, 1e2)
                 if k != 0: 
                     komo.initRandom()  
-
-
             ret = ry.NLP_Solver(komo.nlp(), verbose=0).solve() 
 
             if len(wp_f) > 0:
