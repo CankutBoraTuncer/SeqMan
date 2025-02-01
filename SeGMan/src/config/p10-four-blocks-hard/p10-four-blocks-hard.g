@@ -1,5 +1,7 @@
 Include: <../base-walls-min.g>
 
+wall2_h (world){ shape:ssBox, Q:"t(1 -1 0.3)", size:[.1 2 0.6 .02], color:[0.6953 0.515625 .453125],contact: 1 }
+
 egoJoint(world){Q:[0 0 0.1]  }
 ego(egoJoint) {
     shape:ssCylinder, Q:[-1.3 -1.3 0], size:[.2 .25 .02], color:[0.96875 0.7421875 0.30859375], logical:{gripper}, limits: [-4 4 -4 4], sampleUniform:1,

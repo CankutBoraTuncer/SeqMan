@@ -1,4 +1,5 @@
 Include: <../base-walls-min-heatmap.g>
+wall2_h (world){ shape:ssBox, Q:"t(1 -1 0.3)", size:[.1 2 0.6 .02], color:[0.6953 0.515625 .453125],contact: 1 }
 
 goal (floor){ shape:ssBox, Q:"t(-1.5 1.5 .0)", size:[0.2 0.2 .1 .005], color:[1 1 1], contact:0, logical:{table} }
 

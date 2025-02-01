@@ -1,4 +1,5 @@
 Include: <../base-walls-min.g>
+wall2_h (world){ shape:ssBox, Q:"t(1 -1 0.3)", size:[.1 2 0.6 .02], color:[0.6953 0.515625 .453125],contact: 1 }
 
 egoJoint(world){ Q:[0 0 0.1] }
 ego(egoJoint) {
