@@ -46,7 +46,7 @@ class SeGMan():
         L = 3
 
         while not found:
-            step_size = 0.05
+            step_size = 0.03
 
             # Find a feasible pick configuration and path
             f, _ = self.find_pick_path(self.C, self.agent, self.obj, self.FS, self.verbose, wp_f=wp_f, K=1, N=1)
@@ -96,6 +96,12 @@ class SeGMan():
 # -------------------------------------------------------------------------------------------------------------- #
 
     def remove_obstacle(self, type:int):
+
+        self.OP = []
+        self.obstacle_pair_path = []
+        self.obj_init_scene_score = {}
+        self.obj_pts = {}
+        self.moved_pos = []
 
         # Type 0: Agent cannot reach obj, Type: 1 Obj cannot reach goal
         tic_base = time.time()
@@ -166,6 +172,8 @@ class SeGMan():
             elif type==1 and node.id != prev_node_id:
                 f, P  = self.find_place_path(node.C, node.C.frame(self.obj).getPosition()[0:2], self.verbose, N=2)
                 if f:
+                    tac_coll = time.time()
+                    print("SeGMan Time: ", tac_coll - tic_base)
                     return True, P     
             
             prev_node = node
@@ -951,13 +959,18 @@ class SeGMan():
                 Ct.addFrame("subgoal", "world", "shape: marker, size: [0.1]").setPosition([*wp, 0.2])
                 if verbose > 1:
                     print(f"Trying Move KOMO for {k+1} time")
-                S = ry.Skeleton()
-                S.enableAccumulatedCollisions(True)
-                S.addEntry([0.1, -1], ry.SY.touch, [agent, obj])
-                S.addEntry([0.2, -1], ry.SY.stable, [agent, obj])
-                S.addEntry([0.3, 0.4], ry.SY.positionEq, ["subgoal", obj])
-                komo = S.getKomo_path(Ct, 30, 1e-5, 1e-3, 1e-5, 1e1)
+
+                komo = ry.KOMO(Ct, phases=2, slicesPerPhase=10, kOrder=2, enableCollisions=True)                            # Initialize LGP
+                komo.addControlObjective([], 1, 1e-1)
+                komo.addControlObjective([], 2, 1e-1)
+                komo.addObjective([], ry.FS.accumulatedCollisions, [], ry.OT.eq, scale=1e2)                                                                                        # Randomize the initial configuration
+                komo.addObjective([0,1], ry.FS.distance, [agent, obj], ry.OT.eq, scale=1e2, target=0)                                     # Pick
+                komo.addModeSwitch([1,2], ry.SY.stable, [agent, obj], True)   
+                komo.addObjective([1,2] , ry.FS.positionDiff, [obj, "subgoal"], ry.OT.sos, scale=1e0)  # Place constraints 
+                if k != 0:
+                    komo.initRandom()
                 ret = ry.NLP_Solver(komo.nlp(), verbose=0).solve() 
+
                 Ct.delFrame("subgoal")
                 feasible = ret.eq < 1
                 if verbose > 1 and not feasible:
