@@ -37,10 +37,10 @@ obj1_hm_r(obj1) {
     shape:ssBox, Q:[0 0 0], size:[0.2, 0.2, 0.6, 0.02], logical={ object } nomass:1,  color:[1 0 0 ],
     joint:rigid, friction:.1  contact: 1
 }
-#obj1_hm_b(world) {
-#    shape:ssBox, Q:[-1, -1 0.1], size:[0.2, 0.2, 0.3, 0.02], logical={ object } nomass:1,  color:[0 0 1 ],
-#    joint:rigid, friction:.1  contact: 1
-#}
+obj1_hm_b(world) {
+    shape:ssBox, Q:[-1, -1 0.1], size:[0.2, 0.2, 0.3, 0.02], logical={ object } nomass:1,  color:[0 0 1 ],
+    joint:rigid, friction:.1  contact: 1
+}
 #obj1_hm_y(obj1) {
 #    shape:ssBox, Q:[0 0 0], size:[0.3, 0.3, 0.4, 0.02], logical={ object } nomass:1,  color:[1 1 0 ],
 #    joint:rigid, friction:.1  contact: 1
@@ -57,10 +57,10 @@ obj2_hm_r(obj2) {
     shape:ssBox, Q:[0 0 0], size:[0.2, 0.2, 0.6, 0.02], logical={ object } nomass:1,  color:[1 0 0 ],
     joint:rigid, friction:.1  contact: 1
 }
-#obj2_hm_b(world) {
-#    shape:ssBox, Q:[-0.6, 0.2 0.1], size:[0.2, 0.2, 0.3, 0.02], logical={ object } nomass:1,  color:[0 0 1 ],
-#    joint:rigid, friction:.1  contact: 1
-#}
+obj2_hm_b(world) {
+    shape:ssBox, Q:[-0.6, 0.2 0.1], size:[0.2, 0.2, 0.3, 0.02], logical={ object } nomass:1,  color:[0 0 1 ],
+    joint:rigid, friction:.1  contact: 1
+}
 #obj2_hm_y(obj2) {
 #    shape:ssBox, Q:[0 0 0], size:[0.3, 0.3, 0.4, 0.02], logical={ object } nomass:1,  color:[1 1 0 ],
 #    joint:rigid, friction:.1  contact: 1
@@ -77,10 +77,10 @@ obj3_hm_r(obj3) {
     shape:ssBox, Q:[0 0 0], size:[0.2, 0.2, 0.6, 0.02], logical={ object } nomass:1,  color:[1 0 0 ],
     joint:rigid, friction:.1  contact: 1
 }
-#obj3_hm_b(world) {
-#    shape:ssBox, Q:[-1, -1.8 0.1], size:[0.2, 0.2, 0.3, 0.02], logical={ object } nomass:1,  color:[0 0 1 ],
-#    joint:rigid, friction:.1  contact: 1
-#}
+obj3_hm_b(world) {
+    shape:ssBox, Q:[-1, -1.8 0.1], size:[0.2, 0.2, 0.3, 0.02], logical={ object } nomass:1,  color:[0 0 1 ],
+    joint:rigid, friction:.1  contact: 1
+}
 #obj3_hm_y(obj3) {
 #    shape:ssBox, Q:[0 0 0], size:[0.3, 0.3, 0.4, 0.02], logical={ object } nomass:1,  color:[1 1 0 ],
 #    joint:rigid, friction:.1  contact: 1

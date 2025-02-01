@@ -66,7 +66,7 @@ class SeGMan():
             for l in range(L):
                 # Check for object path
                 C2 = self.make_agent(self.C, self.obj)
-                fr, P = self.run_rrt(C2, self.goal, [], self.verbose, N=2, step_size=step_size/(l+1))
+                fr, P = self.run_rrt(C2, self.goal, [], self.verbose, N=3, step_size=step_size/(l+1))
                 
                 # If it is not possible to go check if there is an obstacle that can be removed
                 if not fr: 
