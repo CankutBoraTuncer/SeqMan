@@ -1,0 +1,9 @@
+../config/p1-two-blocks.g: obj, obj1, obj2
+../config/p2-maze-easy.g: obj
+../config/p4-four-blocks.g: obj, obj1, obj2, obj3, obj4
+../config/p5-wall-easy.g: obj
+../config/p6-wall.g: obj
+../config/p7-o-room.g: obj
+../config/p8-corner.g: obj
+../config/p9-cube-free.g: obj
+../config/p3-maze.g: obj
