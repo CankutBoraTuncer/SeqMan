@@ -98,10 +98,13 @@ class SeGMan():
     def remove_obstacle(self, type:int):
 
         self.OP = []
-        self.obstacle_pair_path = []
+        self.obstacle_pair_path = {}
         self.obj_init_scene_score = {}
         self.obj_pts = {}
         self.moved_pos = []
+        self.tried_pairs = []
+        self.included_pairs = []
+        pair_gen_time = 0
 
         # Type 0: Agent cannot reach obj, Type: 1 Obj cannot reach goal
         tic_base = time.time()
@@ -109,33 +112,38 @@ class SeGMan():
         self.obstacle_pairs = self.generate_obs_pairs()
 
         # Check which pairs are not relevant with the source of failure
-        self.obstacle_pair_path = self.find_collision_pairs(type, self.obstacle_pairs)
+        #self.obstacle_pair_path = self.find_collision_pairs(type, self.obstacle_pairs)
         #pair_clusters = self.find_collision_pairs_v2(N=3)
 
         # Cluster the pairs based on the path similarity
-        self.OP = self.weight_collision_pairs(self.obstacle_pair_path)
+        #self.obstacle_pair_path = self.find_collision_pairs(type, self.obstacle_pairs)
+        #self.OP = self.weight_collision_pairs(self.obstacle_pair_path)
         #self.OP = self.weight_collision_pairs_v2(pair_clusters)
-        
-        tac_pair = time.time()
-        print("Time for pair generation: ", tac_pair-tic_base)
         
         max_iter = 500
         idx = 0
         N = []
-        for pair in self.OP:
-            C_node = ry.Config()
-            C_node.addConfigurationCopy(self.C)
-            root_node = Node(C_node, pair=pair.objects, C_hm=self.C_hm)
-            N.append(root_node)
-        
+
         prev_node = None
         isFirst = True
-        while len(N) > 0 and idx < max_iter:
+        while idx < max_iter:
             idx+=1
 
+            if isFirst:
+                self.find_collision_pairs(type, self.obstacle_pairs, N=2)
+                self.OP = self.weight_collision_pairs(self.obstacle_pair_path)
+                tac_pair = time.time()
+                pair_gen_time += tac_pair-tic_base
+                print("Time for pair generation: ", pair_gen_time)
+
+                for pair in self.OP:
+                    C_node = ry.Config()
+                    C_node.addConfigurationCopy(self.C)
+                    root_node = Node(C_node, pair=pair.objects, C_hm=self.C_hm, isFirst=True)
+                    N.append(root_node)
+
             # Select the best node
-            node = self.select_node(N, prev_node=prev_node, obs_path=self.obstacle_pair_path, isFirst=isFirst)
-            isFirst = False
+            node, isFirst = self.select_node(N, prev_node=prev_node, obs_path=self.obstacle_pair_path, isFirst=isFirst)
             
             if self.verbose > 0:
                 print("Selected Node: " , node)
@@ -365,10 +373,9 @@ class SeGMan():
         best_node = None
 
         for node in N:
-            if isFirst:
-                #self.verbose = 2
-                self.node_score(node, obs_path, isFirst)
-                #self.verbose = 1
+            if node.isFirst:
+                self.node_score(node, obs_path)
+
             elif prev_node != None and node.pair == prev_node.pair:
                 self.node_score(node)
             
@@ -376,18 +383,18 @@ class SeGMan():
             if node.total_score > best_score:
                 best_node = node
                 best_score = node.total_score
-            
-        #if prev_node != None and all(element in best_node.pair for element in prev_node.pair):
-        #    N.append(Node(prev_node.C, best_node.pair, layer=best_node.layer, FS=prev_node.FS, score=best_node.score, is_reachable=best_node.is_reachable))
-        #    prev.C.view(True, "New Node")
+    
+        self.tried_pairs.append(best_node.pair)
+        if sorted(self.tried_pairs) == sorted(self.included_pairs):
+            return best_node, True
 
-        return best_node
+        return best_node, False
     
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
 
-    def node_score(self, node:Node, obs_path:list=[], isFirst:bool=False):
+    def node_score(self, node:Node, obs_path:list=[]):
         c0 = 5
         c1 = 5e-3
         gamma = 1
@@ -411,7 +418,7 @@ class SeGMan():
                 cur_pair = p
                 node_weight = p.weight
 
-        if isFirst:
+        if node.isFirst:
             for i, p in enumerate(obs_path[tuple(node.pair)]):
                 if i == 0:
                     obj = node.C_hm.addFrame("clone_"+str(i), "egoJoint", "shape:ssCylinder, Q:[-1.3 -1.3 0], size:[.3 .3 .02], color:[0 0 1]")
@@ -424,31 +431,25 @@ class SeGMan():
 
         for o in node.pair:
             # The node is root node
-            if isFirst:
-                #if self.obj_init_scene_score.get(o) == None:
+            if node.isFirst:
                 scene_score, pts = self.scene_score(node.C_hm, o + "_cam_g", self.verbose)
                 node.pts = pts
-                #self.obj_init_scene_score[o] = scene_score
-                self.obj_pts[tuple(node.pair)] = pts
-                #else:
-                #    scene_score = self.obj_init_scene_score[o]
-                #    node.pts = self.obj_pts[o]
-                    
+                self.obj_pts[tuple(node.pair)] = pts                   
                 node.init_scene_scores[o] = scene_score
                 node.prev_scene_scores[o] = scene_score
                 global_scene_score += scene_score
                 temporal_scene_score += 0
-            else:
-                # New node
-                if node.total_score == float('-inf'):
-                    
-                    scene_score, pts = self.scene_score(node.C_hm, o + "_cam_g", 2)
-                    node.pts = pts
-                    parent_visit = node.parent.visit
-                    global_scene_score += scene_score #- node.init_scene_scores[o]
-                    temporal_scene_score += scene_score - node.prev_scene_scores[o]
-                    node.prev_scene_scores[o] = scene_score
+                
+            elif node.total_score == float('-inf'):
+                scene_score, pts = self.scene_score(node.C_hm, o + "_cam_g", 2)
+                node.pts = pts
+                parent_visit = node.parent.visit
+                global_scene_score += scene_score #- node.init_scene_scores[o]
+                temporal_scene_score += scene_score - node.prev_scene_scores[o]
+                node.prev_scene_scores[o] = scene_score
         
+        node.isFirst = False
+
         global_scene_score /= len(node.pair)
         global_scene_score *= 0.006
 
@@ -662,13 +663,14 @@ class SeGMan():
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
-    def find_collision_pairs(self, type:int, obs_pair:list):
+    def find_collision_pairs(self, type:int, obstacle_pairs:list, N:int=2):
         if self.verbose > 0:
             print("Finding collision pairs")
         
-        
-        pair_path = {}
+        obs_count = 0
         obj_goal = self.C.frame(self.obj).getPosition()[0:2]
+        obs_pair = copy.deepcopy(obstacle_pairs)
+
         for _, op in enumerate(obs_pair):
             Ct = ry.Config()
             if type == 0:
@@ -685,8 +687,6 @@ class SeGMan():
             for o in op:
                 Ct.frame(o).setContact(0)
 
-            
-
             f = False
             if type == 0:
                 f, path = self.run_rrt(Ct, obj_goal, [], self.verbose, N=1, step_size=0.05)
@@ -694,17 +694,22 @@ class SeGMan():
                 f, path = self.run_rrt(Ct, self.goal, [], self.verbose, N=1, step_size=0.05)
             
             if f:
-                pair_path[tuple(op)] = np.round(path, 2)
+                self.obstacle_pair_path[tuple(op)] = np.round(path, 2)
+                self.included_pairs.append(op)
+                obs_count +=1
 
             if self.verbose > 1:
                 print(f"Is {op} blocking path: {f}")
 
+            obstacle_pairs.remove(op)
 
-
+            if obs_count >= N:
+                break
+            
         if self.verbose > 0:
-            print(f"The blocking obstacle pairs: {pair_path.keys()}")
+            print(f"The blocking obstacle pairs: {self.obstacle_pair_path.keys()}")
                 
-        return pair_path
+        return
 
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
@@ -1010,14 +1015,10 @@ class SeGMan():
         img = np.asarray(img)
 
         img_mask = copy.deepcopy(img)
-        #img, depth = SeGMan.get_image(C, cam_frame, self.verbose)
+
         scene_score = 0
         for i, r in enumerate(img):
             for j, rgb in enumerate(r):
-                #if rgb[0] > 200 and rgb[1] < 200 and rgb[2] < 200:
-                #    scene_score += 0
-                #elif rgb[1] > 200 and rgb[0] > 200 and rgb[2] < 200:
-                #    scene_score += 0 
                 if rgb[1] > 150 and rgb[0] < 150 and rgb[2] < 150:
                     scene_score += 2 
                 elif rgb[0] < 150 and rgb[1] < 150 and rgb[2] > 150:

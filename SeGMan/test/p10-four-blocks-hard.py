@@ -19,7 +19,7 @@ if __name__ == "__main__":
 
     segman = SeGMan(C, C_hm, EGO_NAME, OBJ_NAME, GOAL, OBS_LIST, 0)
     if segman.run():
-        segman.display_solution(pause = 0.2)
+        segman.display_solution(pause = 0.05)
 
 
 
