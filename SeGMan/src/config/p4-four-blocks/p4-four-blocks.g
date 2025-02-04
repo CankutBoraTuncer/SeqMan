@@ -40,3 +40,6 @@ obj(objJoint) {
     shape:ssBox, Q:[1.6 -0.5 .0], size:[.3 .3 0.2 .02], logical={ object }  nomass:1, color:[0 0 1.0],
     joint:rigid, friction:.1  contact: 1
 }
+
+### camera
+camera_gl(world){ Q:"t(0 0 16) d(180 1 0 0)" shape:camera width:600 height:600}

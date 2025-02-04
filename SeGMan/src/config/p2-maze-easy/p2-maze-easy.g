@@ -25,7 +25,4 @@ obj(objJoint) { type:ssBox size:[.3 .3 .2 .02] Q:"t(1.5 -0.5  .0)" color:[0. 0. 
 
 goalLarge (world){ shape:ssBox, Q:"t(-1.7 1.7 -0.01)", size:[0.2 0.2 0.025, 0.01], color:[1. .3 .3]}
 
-### camera
-
-#camera_gl(world){ Q:"t(0 0 20) d(180 0 0 1)" shape:camera width:600 height:600}
-
+camera_gl(world){ Q:"t(0 0 16) d(180 1 0 0)" shape:camera width:900 height:900}

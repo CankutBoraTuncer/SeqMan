@@ -2,7 +2,7 @@ import robotic as ry
 
 if __name__ == "__main__":
     C = ry.Config()
-    C.watchFile("../src/config/p4-four-blocks/p4-four-blocks.g")
+    C.watchFile("../src/config/p3-maze/p3-maze.g")
 
 
  

@@ -23,8 +23,3 @@ obj(objJoint) {type:ssBox size:[.3 .3 .2 .02] color:[0. 0. 1.],  logical={ objec
 
 goalLarge (world){ shape:ssBox, Q:"t(-1.6 1.6 -0.01)", size:[0.2 0.2 0.025, 0.01], color:[1. .3 .3]}
 
-
-### camera
-#camera_gl(world){ Q:"t(0 0 20) d(180 0 0 1)" shape:camera width:600 height:600}
-
-
