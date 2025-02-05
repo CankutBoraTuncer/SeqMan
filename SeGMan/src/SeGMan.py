@@ -66,8 +66,8 @@ class SeGMan():
                 #step_size = 0.01
                 # Check for object path
                 self.C2 = self.make_agent(self.C, self.obj, self.agent)
-                fr, P = self.run_rrt(self.C2, self.goal, [], self.verbose, N=3, step_size=step_size/(l+1), isOpt=True)
-                
+                fr, P = self.run_rrt(self.C2, self.goal, [], 2, N=3, step_size=step_size/(l+1), isOpt=True)
+
                 # If it is not possible to go check if there is an obstacle that can be removed
                 if not fr: 
                     fs = False
@@ -80,7 +80,7 @@ class SeGMan():
                         return
 
                 # Follow the RRT path with KOMO
-                found, self.C, wp_f = self.solve_path(self.C, P, self.agent, self.obj, self.FS, self.verbose, K=3)
+                found, self.C, wp_f = self.solve_path_complete(self.C, P, self.agent, self.obj, self.FS, self.verbose, K=2)
                 if found:
                     break
 
@@ -159,6 +159,8 @@ class SeGMan():
                 if self.verbose > 0:
                     print("Checking if configuration is feasible")
                 f, _ = self.find_pick_path(node.C, self.agent, self.obj, node.FS, self.verbose, K=4, N=1)    
+                
+                #node.FS = node.FS[0:len(node.FS)]
                 #f, _ = self.run_rrt(node.C, node.C.frame(self.obj).getPosition()[0:2], node.FS, self.verbose, N=1)
                 if f:
                     tac_coll = time.time()
@@ -368,7 +370,6 @@ class SeGMan():
             elif prev_node != None and node.pair == prev_node.pair:
                 self.node_score(node)
             
-            #print("TESTED NODE: ", node)
             if node.total_score > best_score:
                 best_node = node
                 best_score = node.total_score
@@ -481,25 +482,26 @@ class SeGMan():
         C2 = ry.Config()
         C2.addConfigurationCopy(C)
 
-        frame_names = C2.getFrameNames()
-        for fn in frame_names:
-            if "ego" in fn:
-                C2.delFrame(fn)
+        C2.delFrame(self.agent)
+        C2.delFrame(self.agent+"Joint")
         
-        obj_f = C2.getFrame(obj)
+        obj_size   = C.frame(obj).getSize()
+        pos = C.frame(obj).getPosition()     
+
+        C2.delFrame(obj)
+        obj_f = C2.addFrame(obj, obj+"Joint", "shape:ssBox, size:"+ str(obj_size) +", color:[0 0 1], contact:1")
         obj_J = C2.getFrame(obj+"Joint")
 
-        pos = obj_f.getPosition()        
+           
         obj_f.setJoint(ry.JT.transXY, limits=[-4, 4, -4, 4])
-        
         obj_J.setPosition([0, 0, 0.2])
         C2.setJointState(pos[0:2])
 
-        if agent != "":
-            agent_size = C.frame(agent).getSize()
-            obj_size   = C.frame(obj).getSize()
-            if max(obj_size[0], obj_size[1]) < agent_size[0]:
-                C2.frame(obj).setShape(ry.ST.ssBox, size=[agent_size[0], agent_size[0], .2, .02])
+        #if agent != "":
+        #    agent_size = C.frame(agent).getSize()
+        #    obj_size   = C.frame(obj).getSize()
+        #    if max(obj_size[0], obj_size[1]) < agent_size[0]:
+        #        obj_f.setShape(ry.ST.ssBox, size=[agent_size[0]*1, agent_size[0]*1, .2, .02])
 
         return C2
    
@@ -528,12 +530,13 @@ class SeGMan():
                 if n.pair == node.pair:
                     self.moved_pos.append(n.C.frame(o).getPosition())
 
+        base_state = Ct.getFrameState()
+
         fs_base = copy.deepcopy(node.FS)
         if len(P) > 0:
-            for p in P:
-                fs_base.append(p)
-                Ct.setFrameState(p)
-
+            fs_base.extend(P)
+            base_state = P[-1]
+        
         # Filtering condition
         pts = copy.deepcopy(node.pts)
 
@@ -544,9 +547,7 @@ class SeGMan():
         generated_nodes = []
 
         for i in range(len(pts)):
-            Ct = ry.Config()
-            Ct.addConfigurationCopy(node.C)
-
+            Ct.setFrameState(base_state)
             #angle = random.uniform(0, 2 * math.pi)  
             #r = random.uniform(0.1, radius)  
             if len(node.pts) == 0:
@@ -561,9 +562,9 @@ class SeGMan():
             obj_mov_pos = [obj_pos_n[0], obj_pos_n[1], obj_pos[2]]
             
             Ct.addFrame("cur_pos", "world", "shape: marker, size: [0.1]").setPosition(obj_mov_pos)    
-            komo = ry.KOMO(Ct, phases=2, slicesPerPhase=10, kOrder=2, enableCollisions=True)                            # Initialize LGP
-            komo.addControlObjective([], 1, 1e-1)
-            komo.addControlObjective([], 2, 1e-1)
+            komo = ry.KOMO(Ct, phases=2, slicesPerPhase=15, kOrder=2, enableCollisions=True)                            # Initialize LGP
+            komo.addControlObjective([], 1, 1e0)
+            komo.addControlObjective([], 2, 1e0)
             komo.addObjective([], ry.FS.accumulatedCollisions, [], ry.OT.eq, scale=1e2)                                                                                        # Randomize the initial configuration
             komo.addObjective([0,1], ry.FS.distance, [self.agent, o], ry.OT.eq, scale=1e2, target=0)                                     # Pick
             komo.addModeSwitch([1,2], ry.SY.stable, [self.agent, o], True)   
@@ -573,15 +574,14 @@ class SeGMan():
             Ct.delFrame("cur_pos")
 
             if self.verbose > 1:
-                komo.view_play(True, f"Subgoal Generation Solution: {ret.eq < 1}")
+                komo.view_play(True, f"Subgoal Generation Solution: {ret.feasible}")
             
             if ret.feasible:
                 path_frames=komo.getPathFrames()
 
                 fs = copy.deepcopy(fs_base)
-                for p in path_frames:
-                    fs.append(p)
-                    Ct.setFrameState(p)
+                fs.extend(path_frames)
+                Ct.setFrameState(path_frames[-1])
 
                 self.moved_pos.append(Ct.frame(o).getPosition())
 
@@ -597,8 +597,8 @@ class SeGMan():
                         #print("Checking for ", ob)
                         Ct2.addFrame("cur_pos2", "world", "shape: marker, size: [0.1]").setPosition(Ct2.frame(ob).getPosition())
                         komo2 = ry.KOMO(Ct2, phases=2, slicesPerPhase=20, kOrder=2, enableCollisions=True)                           
-                        komo2.addControlObjective([], 1, 1e-1)
-                        komo2.addControlObjective([], 2, 1e-1)
+                        komo2.addControlObjective([], 1, 1e0)
+                        komo2.addControlObjective([], 2, 1e0)
                         komo2.addObjective([], ry.FS.accumulatedCollisions, [], ry.OT.eq, scale=1e2)                                                                                        
                         komo2.addObjective([0,1], ry.FS.distance, [self.agent, ob], ry.OT.eq, scale=1e2, target=0)                                     
                         komo2.addModeSwitch([1,2], ry.SY.stable, [self.agent, ob], True)   
@@ -639,7 +639,7 @@ class SeGMan():
         
         #Ct.frame(o).setContact(0)
         #is_reachable, _ =self.run_rrt(Ct, node.C.frame(o).getPosition()[0:2], [], 2, N=1)
-        is_reachable, _ = self.find_pick_path(node.C, self.agent, o, P, self.verbose, K=5, N=1)  
+        is_reachable, _ = self.find_pick_path(node.C, self.agent, o, FS=P, verbose=self.verbose, K=5, N=1)  
         return is_reachable, P
 
 # -------------------------------------------------------------------------------------------------------------- #
@@ -910,8 +910,8 @@ class SeGMan():
                     komo = ry.KOMO(Ct, phases=len(path)/10, slicesPerPhase=10, kOrder=2, enableCollisions=True)                           
                     komo.addControlObjective([], 1, 1e-1)
                     komo.addControlObjective([], 2, 1e-1)
-                    komo.initWithWaypoints(path, 10)
-                    ret = ry.NLP_Solver(komo.nlp(), verbose=0).solve() 
+                    komo.initWithWaypoints(path, 10)                                                                                 # Randomize the initial configuration
+                    ry.NLP_Solver(komo.nlp(), verbose=0).solve() 
                     path = komo.getPath()
                 if verbose > 1:
                     Ct.view(True, "RRT Solution")
@@ -959,8 +959,7 @@ class SeGMan():
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
 
-    def solve_path(self, C:ry.Config, P:list, agent:str, obj:str, FS:list, verbose: int, K:int=5):
-
+    def solve_path_complete(self, C:ry.Config, P:list, agent:str, obj:str, FS:list, verbose: int, K:int=5):
 
         Ct = ry.Config()
         Ct.addConfigurationCopy(C)
@@ -977,7 +976,7 @@ class SeGMan():
                 N = K-n
                 N = min(K-n, len(P) - pi - 1)
 
-                if verbose > -1:
+                if verbose > 1:
                     print(f"{pi} / {len(P)-1}, N = {N}, k = {k} / {K-1}")
 
                 Ct.addFrame("subgoal", "world", "shape: marker, size: [0.1]").setPosition([*P[pi], 0.2])
@@ -989,8 +988,8 @@ class SeGMan():
                     print(f"Trying Move KOMO for {k+1} time")
 
                 komo = ry.KOMO(Ct, phases=2+(N-1), slicesPerPhase=30, kOrder=2, enableCollisions=True)                            # Initialize LGP
-                komo.addControlObjective([], 1, 1e-1)
-                komo.addControlObjective([], 2, 1e-1)
+                komo.addControlObjective([], 1, 1e0)
+                komo.addControlObjective([], 2, 1e0)
                 komo.addObjective([], ry.FS.accumulatedCollisions, [], ry.OT.eq, scale=1e2)                                                                                        # Randomize the initial configuration
                 komo.addObjective([0,1], ry.FS.distance, [agent, obj], ry.OT.eq, scale=1e2, target=0)                                     # Pick
                 komo.addModeSwitch([1,2], ry.SY.stable, [agent, obj], True)   
@@ -999,8 +998,8 @@ class SeGMan():
                 for i in range(1, N):
                     komo.addObjective([1+i,2+i] , ry.FS.positionDiff, [obj, "subgoal"+str(i)], ry.OT.sos, scale=1e0)  # Place constraints 
 
-                if k != 0:
-                    komo.initRandom()
+                #if k != 0:
+                #    komo.initRandom()
 
                 ret = ry.NLP_Solver(komo.nlp(), verbose=0).solve() 
 
@@ -1010,7 +1009,7 @@ class SeGMan():
 
                 feasible = ret.eq < 1
 
-                if verbose > -1 and not feasible:
+                if verbose > 1 and not feasible:
                     komo.view_play(True, f"Move Komo Solution: {feasible}")
                     komo.view_close()
 
@@ -1031,6 +1030,53 @@ class SeGMan():
             
         return False, None, None
 
+# -------------------------------------------------------------------------------------------------------------- #
+# -------------------------------------------------------------------------------------------------------------- #
+# -------------------------------------------------------------------------------------------------------------- #
+
+    def solve_path(self, C:ry.Config, P:list, agent:str, obj:str, FS:list, verbose: int, K:int=5):
+        Ct = ry.Config()
+        Ct.addConfigurationCopy(C)
+
+        if self.verbose > 0:
+            print("Solving for path")
+        for pi, wp in enumerate(P):
+            if verbose > 1:
+                print(f"{pi} / {len(P)-1}")
+            for k in range(K):
+                Ct.addFrame("subgoal", "world", "shape: marker, size: [0.1]").setPosition([*wp, 0.2])
+                if verbose > 1:
+                    print(f"Trying Move KOMO for {k+1} time")
+
+                komo = ry.KOMO(Ct, phases=2, slicesPerPhase=10, kOrder=2, enableCollisions=True)                            # Initialize LGP
+                komo.addControlObjective([], 1, 1e-1)
+                komo.addControlObjective([], 2, 1e-1)
+                komo.addObjective([], ry.FS.accumulatedCollisions, [], ry.OT.eq, scale=1e2)                                                                                        # Randomize the initial configuration
+                komo.addObjective([0,1], ry.FS.distance, [agent, obj], ry.OT.eq, scale=1e2, target=0)                                     # Pick
+                komo.addModeSwitch([1,2], ry.SY.stable, [agent, obj], True)   
+                komo.addObjective([1,2] , ry.FS.positionDiff, [obj, "subgoal"], ry.OT.sos, scale=1e0)  # Place constraints 
+                if k != 0:
+                    komo.initRandom()
+                ret = ry.NLP_Solver(komo.nlp(), verbose=0).solve() 
+
+                Ct.delFrame("subgoal")
+                feasible = ret.eq < 1
+                if verbose > 1 and not feasible:
+                    komo.view_play(True, f"Move Komo Solution: {feasible}")
+                    komo.view_close()
+
+                if feasible:
+                    Ct.setFrameState(komo.getPathFrames()[-1])
+                    FS.append(komo.getPathFrames())
+                    break
+                elif k == K-1:
+                    return False, Ct, wp
+                
+            if pi == len(P)-1:
+                return True, Ct, None
+            
+        return False, None, None
+    
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #

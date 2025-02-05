@@ -19,18 +19,18 @@ obj(objJoint) {
 
 obj1Joint(world){ Q:[0 0 0.1] } # works
 obj1(obj1Joint) {
-    shape:ssBox,Q:[1.4 -1 0], size:[.7 .1 .2 .02], logical={ object } nomass:1,  color:[1 0 0],
+    shape:ssBox,Q:[1.4 -1 0], size:[.7 .1 .2 .02], logical={ object } nomass:1,  color:[1 1 1],
     joint:rigid, friction:.1  contact: 1
 }
 
 obj2Joint(world){ Q:[0 0 0.1] } # works
 obj2(obj2Joint) {
-    shape:ssBox, Q:[1.5 -0.85 0], size:[.7 .1 .2 .02], logical={ object } nomass:1,  color:[0 1 0],
+    shape:ssBox, Q:[1.5 -0.85 0], size:[.7 .1 .2 .02], logical={ object } nomass:1,  color:[1 1 1],
     joint:rigid, friction:.1  contact: 1
 }
 
 obj3Joint(world){ Q:[0 0 0.1] } # works
 obj3(obj3Joint) {
-    shape:ssBox, Q:[1.1 -1.6 0], size:[.1 .5 .2 .02], logical={ object } nomass:1,  color:[0 0 1],
+    shape:ssBox, Q:[1.1 -1.6 0], size:[.1 .5 .2 .02], logical={ object } nomass:1,  color:[1 1 1],
     joint:rigid, friction:.1  contact: 1
 }
