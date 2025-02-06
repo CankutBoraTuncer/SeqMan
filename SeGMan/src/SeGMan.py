@@ -66,7 +66,7 @@ class SeGMan():
                 #step_size = 0.01
                 # Check for object path
                 self.C2 = self.make_agent(self.C, self.obj, self.agent)
-                fr, P = self.run_rrt(self.C2, self.goal, [], 2, N=3, step_size=step_size/(l+1), isOpt=True)
+                fr, P = self.run_rrt(self.C2, self.goal, [], self.verbose, N=3, step_size=step_size/(l+1), isOpt=True)
 
                 # If it is not possible to go check if there is an obstacle that can be removed
                 if not fr: 
@@ -80,7 +80,7 @@ class SeGMan():
                         return
 
                 # Follow the RRT path with KOMO
-                found, self.C, wp_f = self.solve_path_complete(self.C, P, self.agent, self.obj, self.FS, self.verbose, K=2)
+                found, self.C, wp_f = self.solve_path(self.C, P, self.agent, self.obj, self.FS, self.verbose, K=2)
                 if found:
                     break
 
@@ -1040,42 +1040,66 @@ class SeGMan():
 
         if self.verbose > 0:
             print("Solving for path")
-        for pi, wp in enumerate(P):
+       
+        pi = 1
+        max_step = 60
+        step = 60
+        cfc = 0 # consequtive feas count
+
+        while pi < len(P):
+            wp = P[pi]
+            feasible = False
+
             if verbose > 1:
                 print(f"{pi} / {len(P)-1}")
+                print("Step: ", step, "pi", pi)
+
             for k in range(K):
                 Ct.addFrame("subgoal", "world", "shape: marker, size: [0.1]").setPosition([*wp, 0.2])
+
                 if verbose > 1:
                     print(f"Trying Move KOMO for {k+1} time")
 
-                komo = ry.KOMO(Ct, phases=2, slicesPerPhase=10, kOrder=2, enableCollisions=True)                            # Initialize LGP
+                komo = ry.KOMO(Ct, phases=2, slicesPerPhase=30, kOrder=2, enableCollisions=True)                            # Initialize LGP
                 komo.addControlObjective([], 1, 1e-1)
                 komo.addControlObjective([], 2, 1e-1)
                 komo.addObjective([], ry.FS.accumulatedCollisions, [], ry.OT.eq, scale=1e2)                                                                                        # Randomize the initial configuration
                 komo.addObjective([0,1], ry.FS.distance, [agent, obj], ry.OT.eq, scale=1e2, target=0)                                     # Pick
                 komo.addModeSwitch([1,2], ry.SY.stable, [agent, obj], True)   
-                komo.addObjective([1,2] , ry.FS.positionDiff, [obj, "subgoal"], ry.OT.sos, scale=1e0)  # Place constraints 
+                komo.addObjective([1.5,2] , ry.FS.positionDiff, [obj, "subgoal"], ry.OT.eq, scale=1e2)  # Place constraints 
+
                 if k != 0:
                     komo.initRandom()
                 ret = ry.NLP_Solver(komo.nlp(), verbose=0).solve() 
 
                 Ct.delFrame("subgoal")
-                feasible = ret.eq < 1
-                if verbose > 1 and not feasible:
-                    komo.view_play(True, f"Move Komo Solution: {feasible}")
-                    komo.view_close()
+                feasible = ret.feasible
 
-                if feasible:
+                #komo.view_play(True, f"Move Komo Solution: {ret.eq}, {ret.feasible}, ")
+                #komo.view_close()
+
+                if ret.feasible:
                     Ct.setFrameState(komo.getPathFrames()[-1])
-                    FS.append(komo.getPathFrames())
+                    FS.extend(komo.getPathFrames())
+                    pi = min(pi + step, len(P)-1)
+                    cfc += 1
+                    if cfc == 5:
+                        step = min(max_step, step*2)
                     break
-                elif k == K-1:
-                    return False, Ct, wp
                 
+            if not feasible: 
+                cfc = 0
+                if step == 1:
+                    return False, Ct, None
+                
+                pi = max(0, pi-step)
+                step = int(step / 2)
+                pi = min(pi + step, len(P)-1)
+               
             if pi == len(P)-1:
                 return True, Ct, None
             
-        return False, None, None
+        return True, Ct, None
     
 # -------------------------------------------------------------------------------------------------------------- #
 # -------------------------------------------------------------------------------------------------------------- #
