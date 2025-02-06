@@ -4,6 +4,7 @@ from Node import Node
 import time
 import os
 from contextlib import contextmanager
+from bottleneck_subgoal import propose_bottlenecks
 
 @contextmanager
 def suppress_stdout():
@@ -119,36 +120,22 @@ def score_function(x:Node):
         vdist = 2
     x.score = 10*v0 + 5*vg + vdist    
 
-    # if x.score > 15:
-    #     config.view(True,f"Score is: {x.score}")
-        # # File path
-        # file_path = 'output2.txt'
 
-        # # Open the file in append mode and write the array
-        # with open(file_path, 'a') as file:
-        #     # Convert the array to a string and write it to the file
-        #     file.write(', '.join(map(str, goal)) + '\n')
-    #print(10*v0 + 5*vg + vdist)  
-    #return 10*v0 + 5*vg + vdist
-
-
-def select_node(L:list):                                            # Returns the node with the lowest cost
+def select_node(L:list, prio):                                            # Returns the node with the lowest cost
     max_score = -np.inf
-    max_node  = None
-    t         = 0                                                   # Min try count 
-
-    while t <= 2:                                                    # Each node can be tried twice 
-        for x in L:        
-            if x.t == t:
-                if x.score < 0:
-                    score_function(x)
-                if x.score  > max_score:                              # Node with the least try count has more priority
-                    max_score = x.score
-                    max_node = x
-
-        if max_node is not None:                                    # Leave if a node is found
+    max_node  = None                                                 
+                                                                   # Each node can be tried twice 
+    for x in L:
+        if x.t < 2 and not prio:  
+            max_score = x.score
+            max_node = x
             break
-        t += 1
+        elif x.t < 2:      
+            if x.score < 0:
+                score_function(x)
+            if x.score > max_score:                              # Node with the least try count has more priority
+                max_score = x.score
+                max_node = x
 
     if max_node is None:
         return None
@@ -156,40 +143,59 @@ def select_node(L:list):                                            # Returns th
     max_node.t += 1                                                 # Increment the number of times this node is tried
     return max_node
         
+
 def solve(x:Node, view:bool=False):                                          # Solve the task from the current configuration x to the end goal g
     config = ry.Config()
     config.addConfigurationCopy(x.C)
     agent  = x.agent
     obj    = x.o
     goal   = x.og
-    config.addFrame("subgoal", "world", "shape:ssBox, size:[0.2 0.2 .05 .005], color:[1. .3 .3 0.9], contact:0, logical:{table}").setPosition([goal])                        # Add goal frame
+    config.getFrame("sub-goal1").setPosition([goal])                        # Add goal frame
+    # print(goal)
     p = x.path[:]
     ln = x.layer_no
 
-    S = ry.Skeleton()
-    S.enableAccumulatedCollisions(True)
+    for i in range(10):
+        S = ry.Skeleton()
+        S.enableAccumulatedCollisions(True)
 
-    S.addEntry([0, -1], ry.SY.touch, [agent, obj])
-    S.addEntry([0.5, -1], ry.SY.stable, [agent, obj])
-    S.addEntry([0.8, -1], ry.SY.above, [obj, "subgoal"])
-
-    komo = S.getKomo_path(config, 30, 1e-1, 1e1, 1e-1, 1e2)
-    ret = ry.NLP_Solver(komo.nlp(), verbose=0).solve()              # Solve
-
-    #print(ret.eq, ret.ineq, ret.sos, ret.f)
-    #r = 
-    if view:   
-        komo.view_play(True, str(ret.feasible), 0.3)
-
-    if ret.feasible:
+        S.addEntry([1, 2], ry.SY.touch, [agent, obj])
+        S.addEntry([1, 2], ry.SY.stable, [agent, obj])
+        last_state = 2
+        for j in range(i):
+            S.addEntry([last_state, last_state + 1], ry.SY.above, [obj, "floor"])
+            S.addEntry([last_state, last_state + 1], ry.SY.stableOn, ["floor", obj])
+            last_state += 1
+            S.addEntry([last_state, last_state + 1], ry.SY.touch, [agent, obj])
+            S.addEntry([last_state, last_state + 1], ry.SY.stable, [agent, obj])
+            last_state += 1
+        S.addEntry([last_state, -1], ry.SY.above, [obj, "sub-goal1"])
+        #S.addEntry([-1], ry.SY.stableOn, [obj, "sub-goal1"])
+        S.addEntry([-1], ry.SY.poseEq, [obj, "sub-goal1"])
+    
+        komo = S.getKomo_path(config, 2, 1e0, 1e1, 1e-2, 1e2)
         
-        #komo.view_play(True, str(ret.feasible), 0.3
-        config.delFrame("subgoal")
-        komo_path = komo.getPathFrames()
-        p.append(komo_path)
-        config.setFrameState(komo_path[-1])
+        ret = ry.NLP_Solver(komo.nlp(), verbose=0).solve()              # Solve
+        
+        if view:   
+            komo.view_play(True, str(ret.feasible), 0.3)
+
+        if ret.feasible:
+            #komo.view_play(True, "Found", 0.3)
+            komo = S.getKomo_path(config, 30, 1e1, 1e0, 1e-1, 1e2)
+
+            ret = ry.NLP_Solver(komo.nlp(), verbose=0).solve() 
+
+            if ret.feasible:
+
+                komo_path = komo.getPathFrames()
+                p.append(komo_path)
+                config.setFrameState(komo_path[-1])
+                break
+            #komo.view_play(True, "Here not true", 0.3)
 
     return Node(config, Node.main_goal, path=p, layer_no=ln, score=x.score), ret.feasible
+    
 
 def sample_points_around_object(C, agent, obj, num_points):
     center = C.frame(obj).getPosition()[:2]
@@ -207,7 +213,7 @@ def sub_solve(x:Node, view:bool=False, max_iter:int=10):                        
     agent  = x.agent
     obj    = x.o
     goal   = x.og
-    config.addFrame("subgoal", "world", "shape:ssBox, size:[0.2 0.2 .05 .005], color:[1. .3 .3 0.9], contact:0, logical:{table}").setPosition([goal])                        # Add goal frame
+    config.getFrame("sub-goal1").setPosition([goal])                        # Add goal frame
     p = x.path[:]
     ln = x.layer_no
     komo_path = []
@@ -218,7 +224,6 @@ def sub_solve(x:Node, view:bool=False, max_iter:int=10):                        
     pairs = np.insert(pairs, 0, qHome, 0)
     #print(pairs)
     for i, j in pairs:
-        print(iter)
         if iter > max_iter:
             break
         Ctemp = ry.Config()
@@ -241,7 +246,7 @@ def sub_solve(x:Node, view:bool=False, max_iter:int=10):                        
         komo.addObjective([], ry.FS.accumulatedCollisions, [], ry.OT.eq, scale=[1e2])
         komo.addModeSwitch([1.,2], ry.SY.stable, [agent, obj], True)
         komo.addObjective([1, 2], ry.FS.negDistance, [agent, obj], ry.OT.eq, [1e2])
-        komo.addObjective([2], ry.FS.aboveBox, [obj, "subgoal"], ry.OT.ineq, [1e2])
+        komo.addObjective([2], ry.FS.aboveBox, [obj, "sub-goal1"], ry.OT.sos, [1e2])
         #komo.initRandom() 
         solver = ry.NLP_Solver(komo.nlp(), verbose=0 )        # Solve
         ret = solver.solve() 
@@ -251,13 +256,14 @@ def sub_solve(x:Node, view:bool=False, max_iter:int=10):                        
             komo.view_close()
 
 
-        print("Pick-Place feas: ", ret.feasible)
+        #print("Pick-Place feas: ", ret.feasible)
         if ret.feasible: 
             path = komo.getPath()
 
             q0 = config.getJointState()
             qT = path[0]
 
+            
             config1, solution1 = solveRRT(config, q0, qT)
 
             if solution1.feasible:
@@ -275,7 +281,7 @@ def sub_solve(x:Node, view:bool=False, max_iter:int=10):                        
                     path2 = getFrames(config2, solution2, view)
                     komo_path += path2
                     config2.frame(obj).unLink()
-                    config2.delFrame("subgoal")
+                    #config2.delFrame("subgoal")
                     p.append(komo_path)
                     
                     return Node(config2, Node.main_goal, path=p, layer_no=ln, score=x.score), True
@@ -320,30 +326,42 @@ def reachable(x:Node, o:str):                                       # Return Tru
   
     return solution.feasible
 
-def sample_random_points(num_points, max_x, max_y):
-
+def sample_random_points(num_points, max_x, max_y, resolution):
+    decimal_places = len(str(resolution).split('.')[-1])  # Count decimal places in resolution
+    
     points = np.column_stack((
-        np.random.uniform(-max_x, max_x, size=num_points).round(2),
-        np.random.uniform(-max_y, max_y, size=num_points).round(2)
+        np.round(np.random.uniform(-max_x, max_x, size=num_points) / resolution) * resolution,
+        np.round(np.random.uniform(-max_y, max_y, size=num_points) / resolution) * resolution
     ))
 
-    return points
+    return np.round(points, decimal_places)  # Round final result to match resolution precision
 
-def propose_subgoals(x:Node, o:str, method:str="random", n:int=100, max_iter:int=5000): # Propose subgoals for the agent
+def propose_subgoals(x:Node, o:str, method:str="random", n:int=100, max_iter:int=5000, filter: bool = False, filter_coeff: int = 1): # Propose subgoals for the agent
     config       = ry.Config()
     config.addConfigurationCopy(x.C)
+
+    grid_resolution = 0.05
     
-    max_x, max_y = config.frame("floor").getSize()[0:2]
     Z            = {}
-    obj_height = config.getFrame(o).getPosition()[2]
+    goal_height = x.og[2]
+    pairs = []
+
+    if not filter:
+        filter_coeff = 1
 
     if method == "random":
         iter = 0 
-        
-        pairs = sample_random_points(n * 10, max_x/2, max_y/2) 
 
-        for px, py in pairs:
-            if len(Z) > n - 1:
+        obj_height = config.getFrame(o).getPosition()[2]
+        max_x, max_y = config.frame("floor").getSize()[0:2]
+        pairs = sample_random_points(n *filter_coeff * 3, max_x/2, max_y/2, resolution=grid_resolution) 
+
+    elif(method == "bottleneck"):
+        
+        pairs = propose_bottlenecks(config, o, grid_resolution=grid_resolution, n = filter_coeff * n * 3)
+    
+    for px, py in pairs:
+            if len(Z) > filter_coeff * n - 1:
                 break                                      # Propose n subgoals       
             config_base       = ry.Config()
             config_base.addConfigurationCopy(config)            
@@ -366,14 +384,14 @@ def propose_subgoals(x:Node, o:str, method:str="random", n:int=100, max_iter:int
                 #config_temp2.view(True)
                 continue
             
-            config_temp       = ry.Config()
-            config_temp.addConfigurationCopy(config_base)
-            config_temp.frame(o).setPosition(pn)
-            node_temp = Node(config_temp, [o, pn])
-            if not reachable(node_temp, o):                                  # Check if agent can reach the object
-                continue
+            # config_temp       = ry.Config()
+            # config_temp.addConfigurationCopy(config_base)
+            # config_temp.frame(o).setPosition(pn)
+            # node_temp = Node(config_temp, [o, pn])
+            # if not reachable(node_temp, o):                                  # Check if agent can reach the object
+            #     continue
                 
-            node = Node(config_base, [o, pn], path=x.path, layer_no=(x.layer_no+1))  # Create a new node
+            node = Node(config_base, [o, [px, py, goal_height]], path=x.path, layer_no=(x.layer_no+1))  # Create a new node
             score_function(node)
             Z[node] = node.score
             iter += 1
@@ -381,13 +399,9 @@ def propose_subgoals(x:Node, o:str, method:str="random", n:int=100, max_iter:int
     Z = sorted(Z, key=Z.get, reverse=True)[0:n]                # Sort the list using scoring function
     #Z.append(Node(x.C, x.g, path=x.path, layer_no=(x.layer_no+1), score = x.score)) # Add the original position as a subgoal
 
-    #for i, z in enumerate(Z):
-    #    config.addFrame(f"subgoal_p{i}", "world", "shape:ssBox, size:[0.2 0.2 .1 .005], color:[.3 1 .3 0.9], contact:0, logical:{table}").setPosition(z.g[1])                        # Add goal frame
-    #config.view(True, "Subgoals")
-
     return Z                                                            # Return the top n subgoals
  
-def rej(L: list, xf: ry.Config, O: list, threshold: float = 0.05):
+def rej(L: list, xf: ry.Config, O: list, threshold: float = 0.3):
     """
     Reject the node if it is similar to at most two nodes in L within a given threshold.
 

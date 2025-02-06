@@ -18,7 +18,7 @@ def process_tasks(file_path):
         solved_count = 0
 
         for _ in range(1):  # Run the method 10 times
-            solved, runtime = SeqMan(task_name, object_list)
+            solved, runtime = SeqMan(task_name, object_list, "random", True, True, True)
             if solved:
                 solved_count += 1
                 runtimes.append(runtime)
@@ -40,7 +40,7 @@ def process_tasks(file_path):
     
     # Create a DataFrame
     df = pd.DataFrame(results_data)
-    print(df)
+    df.to_csv("run_output_Rand_FPR.csv", sep=" ", index=False)
 
 # Example usage
-process_tasks('input.txt')
+process_tasks('SeqMan-main/Orig/input.txt')
