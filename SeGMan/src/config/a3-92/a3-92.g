@@ -17,7 +17,7 @@ objJoint (world) 	{  Q:[0, 0, 0.1, -1, 0, 0, 0] }
 obj (objJoint) 	{  Q:[-0.6, -1, 0, -1, 0, 0, 0], joint:rigid, shape:ssBox, size:[0.2, 0.2, 0.2, 0.02], color:[0, 0, 1], contact:1, mass:100, inertia:[0 0 0], logical:{ object } }
 
 obj1Joint (world) 	{  Q:[0, 0, 0.1, -1, 0, 0, 0] }
-obj1 (obj1Joint) 	{  Q:[-0.6, 0.2, 0, -1, 0, 0, 0], joint:rigid, shape:ssBox, size:[0.2, 0.2, 0.2, 0.02], color:[1, 0, 1], contact:1, mass:100, inertia:[0 0 0], logical:{ object } }
+obj1 (obj1Joint) 	{  Q:[-0.6, 0.2, 0, -1, 0, 0, 0], joint:rigid, shape:ssBox, size:[0.2, 0.2, 0.2, 0.02], color:[1, 1, 1], contact:1, mass:100, inertia:[0 0 0], logical:{ object } }
 
 block_4_5 (floor) 	{  Q:[-0.6, -0.2, 0.2, -1, 0, 0, 0], shape:ssBox, size:[0.4, 0.4, 0.4, 0.01], color:[0.6953, 0.515625, 0.453125], contact:1, mass:100, inertia:[0 0 0] }
 block_5_4 (floor) 	{  Q:[-0.2, -0.6, 0.2, -1, 0, 0, 0], shape:ssBox, size:[0.4, 0.4, 0.4, 0.01], color:[0.6953, 0.515625, 0.453125], contact:1, mass:100, inertia:[0 0 0] }

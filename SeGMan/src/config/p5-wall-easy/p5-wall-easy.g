@@ -15,8 +15,5 @@ wall8_h (world){ joint: rigid,shape:ssBox, Q:"t(-1.45 1.0 0.3)", size:[1.0 .1 0.
 objJoint(world){ Q:[0.0 0.0 0.1] } # works
 obj(objJoint) { type:ssBox size:[.3 .3 .2 .02] Q:"t(-0.9 -1.5 0)" color:[0. 0. 1.],  logical={ object }, joint:rigid, contact: 1 }
 
-### camera
-camera_gl(world){ Q:"t(0 0 16) d(180 1 0 0)" shape:camera width:900 height:900}
-
 
 
