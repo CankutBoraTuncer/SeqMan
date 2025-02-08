@@ -5,6 +5,7 @@ from contextlib import contextmanager
 import base64
 from openai import OpenAI
 from PIL import Image, ImageChops
+import json
 
 @contextmanager
 def suppress_stdout():
@@ -29,6 +30,39 @@ def suppress_stdout():
         os.close(original_stdout)
         os.close(original_stderr)
 
+
+def rgb_to_hex(rgb):
+    return "#{:02x}{:02x}{:02x}".format(int(rgb[0] * 255), int(rgb[1] * 255), int(rgb[2] * 255))
+
+
+# Function to read variables from .config
+def generate_dict(task: str, config: ry.Config, agent_name: str = "ego", obj_name: str = "obj", goal_name: str = "goal") -> dict:
+    res = {
+        "task": task,
+        "agent": {},
+        "target object": {},
+        "obstacles": [],
+        "goal position": {}
+    }
+    frame_names = config.getFrameNames()
+    for frame_name in frame_names:
+        frame = config.getFrame(frame_name)
+        attributes = frame.getAttributes()
+        if frame_name == agent_name:
+            res["agent"]["color"] = rgb_to_hex(attributes["color"])
+            res["agent"]["position"] = frame.getPosition()[:2].tolist()
+        elif frame_name == obj_name:
+            res["target object"]["color"] = rgb_to_hex(attributes["color"])
+            res["target object"]["position"] = frame.getPosition()[:2].tolist()
+        elif frame_name == goal_name:
+            res["goal position"] = frame.getPosition()[:2].tolist()
+        elif "logical" in attributes and "object" in attributes["logical"]:
+            res["obstacles"].append({
+                "name": frame_name,
+                "position": frame.getPosition()[:2].tolist()
+            })
+    return res
+    
 
 # Function to get the OpenAI client
 def get_client(api_key: str) -> OpenAI:
@@ -106,39 +140,16 @@ def overlay_image_over_config(
         opacity:float=0.5,
         camera_name:str="camera-top",
         camera_path:str="config/camera-top.g") -> None:
-    """
-    Overlays the image over the config view from camera view.
-    Both images must have the same dimensions!
 
-    Args:
-        C0 (ry.Config): The configuration to use for generating the image
-        overlay_path (str): Path to the overlay image
-        output_path (str): Path to save the output image
-        opacity (float): Opacity of the overlay image
-        camera_name (str): Name of the camera frame
-        camera_path (str): Path to the camera configuration file
+    C0.addFile(camera_path)
+    camera_view = ry.CameraView(C0)
+    cam = C0.getFrame(camera_name)
+    camera_view.setCamera(cam)
+    img, depth = camera_view.computeImageAndDepth(C0)
+    img = np.asarray(img)
 
-    Returns:
-        bool: True if the image was successfully saved, False otherwise
-    """
-
-    config = ry.Config()
-    config.addConfigurationCopy(C0)
-    config.addFile(camera_path)
-
-    tmp_path = "tmp/tmp"
-    config.view()
-    config.view_setCamera(config.getFrame(camera_name))
-    config.view(True)
-    config.view_savePng(tmp_path)
-    tmp_path += "0000.png"
-    config.view_close()
-
-    del config
-
-    background = Image.open(tmp_path)
+    background = Image.fromarray(img)
     overlay = Image.open(overlay_path)
-    os.remove(tmp_path)
 
     background = background.convert("RGBA")
     overlay = overlay.convert("RGBA")
