@@ -1046,45 +1046,39 @@ class SeGMan():
         if self.verbose > 0:
             print("Solving for path")
        
-        step = max_step
+        step = len(P)-1
         pi = step
-        pi2 = min(step*2,len(P)-1)
+
         cfc = 0 # consequtive feas count
         fs = []
         pf = 0
 
         while pi < len(P):
             wp = P[pi]
-            wp2 = P[pi2]
+
             feasible = False
 
 
             for k in range(0, K+1):
 
                 if verbose > 0:
-                    print(f"pi:{pi}, pi2:{pi2}, tot: {len(P)-1}")
+                    print(f"pi:{pi}, tot: {len(P)-1}")
                     print("Step:", step)
 
                 if verbose > 1:
                     print(f"Trying Move KOMO for {k+1} time")
 
                 Ct.addFrame("subgoal", "world", "shape: marker, size: [0.1]").setPosition([*wp, 0.2])
-                Ct.addFrame("subgoal2", "world", "shape: marker, size: [0.1]").setPosition([*wp2, 0.2])
+  
 
-                komo = ry.KOMO(Ct, phases=6, slicesPerPhase=15, kOrder=2, enableCollisions=True)                            # Initialize LGP
+                komo = ry.KOMO(Ct, phases=4, slicesPerPhase=15, kOrder=2, enableCollisions=True)                            # Initialize LGP
                 komo.addControlObjective([], 1, 1e0)
                 komo.addControlObjective([], 2, 1e0)
-                komo.addObjective([], ry.FS.accumulatedCollisions, [], ry.OT.eq, scale=1e3)   
+                komo.addObjective([], ry.FS.accumulatedCollisions, [], ry.OT.eq)   
                                                                                                     
-                komo.addObjective([0,1], ry.FS.distance, [agent, obj], ry.OT.eq, scale=1e1, target=0)                                     # Pick
-                komo.addModeSwitch([1,2], ry.SY.stable, [agent, obj], True)   
-                komo.addObjective([1.5,2.5] , ry.FS.positionDiff, [obj, "subgoal"], ry.OT.eq, scale=1e1)  # Place constraints 
-
-                komo.addModeSwitch([2.5,3], ry.SY.stable, ["floor", obj], True)    
-
-                komo.addObjective([2,3], ry.FS.distance, [agent, obj], ry.OT.eq, scale=1e1, target=0)                                     # Pick
-                komo.addModeSwitch([3,4], ry.SY.stable, [agent, obj], True)   
-                komo.addObjective([3.5,6] , ry.FS.positionDiff, [obj, "subgoal2"], ry.OT.sos, scale=1e1)  # Place constraints 
+                komo.addObjective([1,-1], ry.FS.distance, [agent, obj], ry.OT.eq, scale=1e1, target=0)                                     # Pick
+                komo.addModeSwitch([2,-1], ry.SY.stable, [agent, obj], True)   
+                komo.addObjective([3,-1] , ry.FS.positionDiff, [obj, "subgoal"], ry.OT.eq, scale=1e1)  # Place constraints 
 
                 if k > 1:
                     komo.initRandom()
@@ -1092,20 +1086,14 @@ class SeGMan():
                 ret = ry.NLP_Solver(komo.nlp(), verbose=0).solve() 
 
                 Ct.delFrame("subgoal")
-                Ct.delFrame("subgoal2")
 
                 feasible = ret.feasible
-
-                #print(f"Feasible: {feasible} \n")
-                #komo.view_play(True, f"Move Komo Solution: {ret.eq}, {ret.feasible}, ")
-                #komo.view_close()
-                #komo.report(True, True, True)
                 
                 if ret.feasible:
                     Ct.setFrameState(komo.getPathFrames()[-1])
                     fs.extend(komo.getPathFrames())
 
-                    if pi == len(P)-1 or pi2 == len(P)-1:
+                    if pi == len(P)-1:
                         FS.extend(fs)
                         return True, Ct, None
                     
@@ -1113,9 +1101,9 @@ class SeGMan():
                         #cfc = 0
                         step = min(max_step, step*2)
 
-                    pf = pi2
-                    pi = min(pi2 + step, len(P)-1)
-                    pi2 = min(pi2 + 2*step,len(P)-1)
+                    pf = pi
+                    pi = min(pf + step, len(P)-1)
+
                     cfc += 1
                     break
                 
@@ -1123,10 +1111,9 @@ class SeGMan():
                 cfc = 0
                 if step == 1:
                     return False, Ct, Ct.frame(obj).getPosition()
-
+            
                 step = int(step / 2)
                 pi = min(pf + step, len(P)-1)
-                pi2 = pi
 
         FS.extend(fs)
         return True, Ct, None
