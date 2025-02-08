@@ -1,10 +1,9 @@
 import robotic as ry
 from utils import *
-from openai import OpenAI
 from pydantic import BaseModel
 import os
-import numpy as np
 import json
+import sys
 
 
 class ObstaclePositionPair(BaseModel):
@@ -24,10 +23,13 @@ class VLMResponse(BaseModel):
 TASK_A2O = "agent to object"
 TASK_O2G = "object to goal"
 
+# This function builds the user prompt from the given dictionary. The dictonary is 
+# generated from the generate_dict function in utils. And contains the task and
+# positional information about the agent, object, goal, and obstacles.
 def build_prompt(prompt_dict: dict) -> str:
     puzzle_info_str = json.dumps(prompt_dict)
     return puzzle_info_str
-    
+
 
 SYSTEM_PROMPT = """Your task is to analyze a 2D pick-and-place puzzle environment, given in a top-down view with the camera positioned on top of [0.0, 0.0] (center), and plan a sequence of actions for an agent to move an object to a goal position without causing collisions. 
 
@@ -104,9 +106,12 @@ Your result must be in JSON format:
 - Decimal values can be used for precise positioning within the coordinate system.
 - The anchor of each object is its center, not its corner."""
 
+
 if __name__ == "__main__":
 
     CONFIG_NAME = "p1-two-blocks"
+    if len(sys.argv) > 1:
+        CONFIG_NAME = sys.argv[1]
 
     overlay_parameters = {
         "image" : ["overlay_matrix.png", "overlay_grid.png"],
@@ -175,6 +180,7 @@ if __name__ == "__main__":
             max_completion_tokens=2000
         )
 
+        # vlm_response is an instance of VLMResponse
         vlm_response = response.choices[0].message.parsed
 
         print(f"{CONFIG_NAME} - {i}")

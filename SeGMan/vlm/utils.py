@@ -5,7 +5,6 @@ from contextlib import contextmanager
 import base64
 from openai import OpenAI
 from PIL import Image, ImageChops
-import json
 
 @contextmanager
 def suppress_stdout():
