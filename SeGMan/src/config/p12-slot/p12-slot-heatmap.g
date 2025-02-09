@@ -95,3 +95,22 @@ obj4_hm_b(world) {
 obj4_cam_g(world): { rel: [-1.5 -1.4, 2,   0.00040292,  -0.99999992,   0.00000000,   0.00000000 ], shape: marker, size: [0.1], width: 30, height: 30, focalLength: 1, zRange: [0.5, 3]  },
 obj4_cam_rel(obj4): { X: [-1.5 -1.4, 2.1,   0.00040292,  -0.99999992,   0.00000000,   0.00000000 ], shape: marker, size: [0.1], width: 30, height: 30, focalLength: 1, zRange: [0.5, 3]  },
 
+#---------------------------------------------------------------------------------------------------#
+
+obj5Joint(world){ Q:[0.0 0.0 0.1] } # works
+obj5(obj1Joint) {
+    shape:ssBox, Q:[0.4 -1.45 .0], size:[.2 .8 .2 .02], logical={ object } nomass:1,  color:[1 1 1],
+    joint:rigid, friction:.1  contact: 1
+}
+
+obj5_hm_r(obj5) {
+    shape:ssBox, Q:[0 0 0], size:[.2 .8 .6 .02], logical={ object } nomass:1,  color:[1 0 0 ],
+    joint:rigid, friction:.1  contact: 1
+}
+obj5_hm_b(world) {
+    shape:ssBox, Q:[0.4 -1.45.1], size:[.2 .8 .4 .02], logical={ object } nomass:1,  color:[0 0 1 ],
+    joint:rigid, friction:.1  contact: 1
+}
+
+obj5_cam_g(world): { rel: [0.4 -1.45, 2,   0.00040292,  -0.99999992,   0.00000000,   0.00000000 ], shape: marker, size: [0.1], width: 30, height: 30, focalLength: 1, zRange: [0.5, 3]  },
+obj5_cam_rel(obj5): { X: [0.4 -1.45, 2.1,   0.00040292,  -0.99999992,   0.00000000,   0.00000000 ], shape: marker, size: [0.1], width: 30, height: 30, focalLength: 1, zRange: [0.5, 3]  },
