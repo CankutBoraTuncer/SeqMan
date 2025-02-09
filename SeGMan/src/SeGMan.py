@@ -73,7 +73,7 @@ class SeGMan():
                     else: 
                         self.C2 = self.make_agent(self.C, self.obj, self.agent, [])
 
-                    fr, P = self.run_rrt(self.C2, self.goal, [], 2, N=3, step_size=step_size/(l+1), isOpt=True)
+                    fr, P = self.run_rrt(self.C2, self.goal, [], self.verbose, N=3, step_size=step_size/(l+1), isOpt=True)
 
                     # If it is not possible to go check if there is an obstacle that can be removed
                     if not fr: 
@@ -156,10 +156,10 @@ class SeGMan():
 
             if self.verbose > 0:
                 print("Selected Node: " , node)
-                if self.verbose > 2:
+                if self.verbose > 1:
                     node.C.view(True, str(node))
                     node.C.view_close()
-
+            
             node.visit += 1
             if prev_node != None:
                 prev_node_id = prev_node.id
@@ -459,11 +459,12 @@ class SeGMan():
 
         if len(obs) > 0:
             C2.addFrame("obs", "world", "shape:ssBox, size:"+ str(obj_size) +", color:[1 0 0], contact:1").setPosition([*obs[0:2], 0.2])
-        #if agent != "":
-        #    agent_size = C.frame(agent).getSize()
-        #    obj_size   = C.frame(obj).getSize()
-        #    if max(obj_size[0], obj_size[1]) < agent_size[0]:
-        #        obj_f.setShape(ry.ST.ssBox, size=[agent_size[0]*1, agent_size[0]*1, .2, .02])
+            #
+        if agent != "":
+            agent_size = C.frame(agent).getSize()
+            obj_size   = C.frame(obj).getSize()
+            if max(obj_size[0], obj_size[1]) < agent_size[0]:
+                obj_f.setShape(ry.ST.ssBox, size=[agent_size[0]*1, agent_size[0]*1, .2, .02])
 
         return C2
    
@@ -520,30 +521,30 @@ class SeGMan():
 
             obj_mov_pos = [obj_pos_n[0], obj_pos_n[1], obj_pos[2]]
             
-            Ct.addFrame("cur_pos", "world", "shape: marker, size: [0.1]").setPosition(obj_mov_pos)  
+            Ct.addFrame("subgoal", "world", "shape: marker, size: [0.1]").setPosition(obj_mov_pos)  
 
-            S = ry.Skeleton()
-            S.enableAccumulatedCollisions(True)
-            S.addEntry([1, 4], ry.SY.touch, [self.agent ,o])
-            S.addEntry([2, 4], ry.SY.stable, [self.agent ,o])
-            S.addEntry([3, 4], ry.SY.positionEq, [o, "cur_pos"])
-            komo = S.getKomo_path(Ct, 10, 1e0, 1e-1, 1e-1, 1e2)                                 
+            #S = ry.Skeleton()
+            #S.enableAccumulatedCollisions(True)
+            #S.addEntry([1, 4], ry.SY.touch, [self.agent ,o])
+            #S.addEntry([2, 4], ry.SY.stable, [self.agent ,o])
+            #S.addEntry([3, 4], ry.SY.positionEq, [o, "subgoal"])
+            #komo = S.getKomo_path(Ct, 10, 1e0, 1e-1, 1e-1, 1e2)                                
 
 
-            #komo = ry.KOMO(Ct, phases=4, slicesPerPhase=10, kOrder=2, enableCollisions=True)                            # Initialize LGP
-            #komo.addControlObjective([], 1, 1e-1)
-            #komo.addControlObjective([], 2, 1e-1)
-            #komo.addObjective([], ry.FS.accumulatedCollisions, [], ry.OT.eq)                                                               
-            #komo.addObjective([1,-1], ry.FS.distance, [self.agent, o], ry.OT.eq, scale=1e1, target=0)                                     # Pick
-            #komo.addModeSwitch([2,-1], ry.SY.stable, [self.agent, o], True)   
-            #komo.addObjective([3,-1] , ry.FS.positionDiff, [o, "cur_pos"], ry.OT.sos, scale=1e1)  # Place constraints 
+            komo = ry.KOMO(Ct, phases=2, slicesPerPhase=15, kOrder=2, enableCollisions=True)                            # Initialize LGP
+            komo.addControlObjective([], 1, 1e0)
+            komo.addControlObjective([], 2, 1e0)
+            komo.addObjective([], ry.FS.accumulatedCollisions, [], ry.OT.eq, scale=1e2)                                                                                        # Randomize the initial configuration
+            komo.addObjective([0,1], ry.FS.distance, [self.agent, o], ry.OT.eq, scale=1e2, target=0)                                     # Pick
+            komo.addModeSwitch([1,2], ry.SY.stable, [self.agent, o], True)   
+            komo.addObjective([1,2] , ry.FS.positionDiff, [o, "subgoal"], ry.OT.sos, scale=1e0)  # Place constraints 
             
             ret = ry.NLP_Solver(komo.nlp(), verbose=0).solve() 
             #komo.view_play(True, f"{ret.eq}, {ret.feasible}")
-            Ct.delFrame("cur_pos")
+            Ct.delFrame("subgoal")
 
-            if self.verbose > 1:
-                komo.view_play(True, f"Subgoal Generation Solution: {ret.feasible}")
+            #if o == "obj1":
+            #    komo.view_play(True, f"Subgoal Generation Solution: {ret.feasible}")
             
             if ret.feasible:
                 #komo.view_play(True, f"Subgoal Generation Solution: {ret.feasible}")
@@ -795,9 +796,7 @@ class SeGMan():
 
         while pi < len(P):
             wp = P[pi]
-
             feasible = False
-
 
             for k in range(0, K+1):
 
@@ -811,14 +810,13 @@ class SeGMan():
                 Ct.addFrame("subgoal", "world", "shape: marker, size: [0.1]").setPosition([*wp, 0.2])
   
                 
-                komo = ry.KOMO(Ct, phases=2, slicesPerPhase=20, kOrder=2, enableCollisions=True)                            # Initialize LGP
-                komo.addControlObjective([], 1, 1e0)
-                komo.addControlObjective([], 2, 1e0)
-                komo.addObjective([], ry.FS.accumulatedCollisions, [], ry.OT.eq)   
-                                                                                                    
-                komo.addObjective([1,1], ry.FS.negDistance, [agent, obj], ry.OT.eq, scale=1e1, target=0)                                     # Pick
+                komo = ry.KOMO(Ct, phases=2, slicesPerPhase=10, kOrder=2, enableCollisions=True)                            # Initialize LGP
+                komo.addControlObjective([], 1, 1e-1)
+                komo.addControlObjective([], 2, 1e-1)
+                komo.addObjective([], ry.FS.accumulatedCollisions, [], ry.OT.eq, scale=1e2)                                                                                        # Randomize the initial configuration
+                komo.addObjective([1], ry.FS.distance, [agent, obj], ry.OT.eq, scale=1e2, target=0)                                     # Pick
                 komo.addModeSwitch([1,2], ry.SY.stable, [agent, obj], True)   
-                komo.addObjective([1.9,2] , ry.FS.positionDiff, [obj, "subgoal"], ry.OT.eq, scale=1e1)  # Place constraints 
+                komo.addObjective([2] , ry.FS.positionDiff, [obj, "subgoal"], ry.OT.eq, scale=1e0)  # Place constraints 
 
                 if k > 1:
                     komo.initRandom()
@@ -828,8 +826,8 @@ class SeGMan():
                 Ct.delFrame("subgoal")
 
                 feasible = ret.feasible
-                if step == 1:
-                    komo.view_play(True, f"{feasible}, {ret.eq}")
+                #if step == 1:
+                #komo.view_play(True, f"{feasible}, {ret.eq}")
                 if ret.feasible:
                     Ct.setFrameState(komo.getPathFrames()[-1])
                     fs.extend(komo.getPathFrames())
@@ -895,6 +893,7 @@ class SeGMan():
 
         pts = ry.depthImage2PointCloud(depth, camera_view.getFxycxy())
         pts = self.cam_to_target(pts.reshape(-1, 3), C.getFrame("world"), cam)
+        random.shuffle(pts)
         pts = pts[::8]
 
         if(verbose>1):

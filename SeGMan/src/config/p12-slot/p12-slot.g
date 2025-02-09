@@ -15,7 +15,7 @@ ego(egoJoint) {
 
 obj1Joint(world){ Q:[0.0 0.0 0.1] } # works
 obj1(obj1Joint) {
-    shape:ssBox, Q:[0.4 0.6 .0], size:[.2 1 .2 .02], logical={ object } nomass:1,  color:[1 1 1],
+    shape:ssBox, Q:[0.0 0.6 .0], size:[.2 .5 .2 .02], logical={ object } nomass:1,  color:[1 1 1],
     joint:rigid, friction:.1  contact: 1
 }
 

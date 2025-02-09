@@ -9,30 +9,26 @@ egoJoint(world){ Q:[0 0.0 0.1] } # works
 #---------------------------------------------------------------------------------------------------#
 
 objJoint(world){ Q:[0 0 0.1] } # works
-obj(objJoint) { 
-    type:ssBox size:[.3 .3 .2 .02] Q:"t(1.6 -1.6  0)" color:[1 1 1],
-    logical={ object }, joint:rigid, contact: 1 
-}
 
 #---------------------------------------------------------------------------------------------------#
 
 obj1Joint(world){ Q:[0.0 0.0 0.1] } # works
 obj1(obj1Joint) {
-    shape:ssBox, Q:[0.4 0.6 .0], size:[.2 1 .2 .02], logical={ object } nomass:1,  color:[1 1 1],
+    shape:ssBox, Q:[0 0.6 .0], size:[.2 .5 .2 .02], logical={ object } nomass:1,  color:[1 1 1],
     joint:rigid, friction:.1  contact: 1
 }
 
 obj1_hm_r(obj1) {
-    shape:ssBox, Q:[0 0 0], size:[.2 1 .6 .02], logical={ object } nomass:1,  color:[1 0 0 ],
+    shape:ssBox, Q:[0 0 0], size:[.2 .5 .6 .02], logical={ object } nomass:1,  color:[1 0 0 ],
     joint:rigid, friction:.1  contact: 1
 }
 obj1_hm_b(world) {
-    shape:ssBox, Q:[0.4 0.6 .1], size:[.2 1 .4 .02], logical={ object } nomass:1,  color:[0 0 1 ],
+    shape:ssBox, Q:[0 0.6 .1], size:[.2 .5 .4 .02], logical={ object } nomass:1,  color:[0 0 1 ],
     joint:rigid, friction:.1  contact: 1
 }
 
-obj1_cam_g(world): { rel: [0.4 0.6, 2,   0.00040292,  -0.99999992,   0.00000000,   0.00000000 ], shape: marker, size: [0.1], width: 30, height: 30, focalLength: 1, zRange: [0.5, 3]  },
-obj1_cam_rel(obj1): { X: [0.4 0.6, 2.1,   0.00040292,  -0.99999992,   0.00000000,   0.00000000 ], shape: marker, size: [0.1], width: 30, height: 30, focalLength: 1, zRange: [0.5, 3]  },
+obj1_cam_g(world): { rel: [0 0.6, 2,   0.00040292,  -0.99999992,   0.00000000,   0.00000000 ], shape: marker, size: [0.1], width: 30, height: 30, focalLength: 1, zRange: [0.5, 3]  },
+obj1_cam_rel(obj1): { X: [0 0.6, 2.1,   0.00040292,  -0.99999992,   0.00000000,   0.00000000 ], shape: marker, size: [0.1], width: 30, height: 30, focalLength: 1, zRange: [0.5, 3]  },
 
 
 #---------------------------------------------------------------------------------------------------#
