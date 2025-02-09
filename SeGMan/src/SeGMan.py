@@ -348,7 +348,6 @@ class SeGMan():
 
     def node_score(self, node:Node, obs_path:list=[]):
         c0 = 5
-        c1 = 5e-3
         gamma = 1
         weight_discount = 0.95
 
@@ -483,11 +482,7 @@ class SeGMan():
         obj_pos = node.C.frame(o).getPosition()
         feas_count = 0
         err_count = 0
-        err_lim = 5
-        min_dist = 0.4
         poss = [Ct.frame(o).getPosition()]
-
-        #self.verbose = 2
 
         if len(self.moved_pos) == 0:
             for n in N:
@@ -508,8 +503,6 @@ class SeGMan():
 
         for i in range(len(pts)):
             Ct.setFrameState(base_state)
-            #angle = random.uniform(0, 2 * math.pi)  
-            #r = random.uniform(0.1, radius)  
             if len(node.pts) == 0:
                 print("NOOO POINTS")
                 return 
@@ -523,14 +516,6 @@ class SeGMan():
             
             Ct.addFrame("subgoal", "world", "shape: marker, size: [0.1]").setPosition(obj_mov_pos)  
 
-            #S = ry.Skeleton()
-            #S.enableAccumulatedCollisions(True)
-            #S.addEntry([1, 4], ry.SY.touch, [self.agent ,o])
-            #S.addEntry([2, 4], ry.SY.stable, [self.agent ,o])
-            #S.addEntry([3, 4], ry.SY.positionEq, [o, "subgoal"])
-            #komo = S.getKomo_path(Ct, 10, 1e0, 1e-1, 1e-1, 1e2)                                
-
-
             komo = ry.KOMO(Ct, phases=2, slicesPerPhase=15, kOrder=2, enableCollisions=True)                            # Initialize LGP
             komo.addControlObjective([], 1, 1e-1)
             komo.addControlObjective([], 2, 1e-1)
@@ -540,14 +525,11 @@ class SeGMan():
             komo.addObjective([2] , ry.FS.positionDiff, [o, "subgoal"], ry.OT.sos, scale=1e1)  # Place constraints 
             
             ret = ry.NLP_Solver(komo.nlp(), verbose=0).solve() 
-            #komo.view_play(True, f"{ret.eq}, {ret.feasible}")
+
             Ct.delFrame("subgoal")
 
-            #if o == "obj1":
-            #    komo.view_play(True, f"Subgoal Generation Solution: {ret.feasible}")
-            
             if ret.feasible:
-                #komo.view_play(True, f"Subgoal Generation Solution: {ret.feasible}")
+
                 path_frames=komo.getPathFrames()
 
                 fs = copy.deepcopy(fs_base)
@@ -568,13 +550,10 @@ class SeGMan():
                         S2.addEntry([0.5, -1], ry.SY.touch, [self.agent ,ob])
                         komo2 = S2.getKomo_path(Ct, 30, 1e0, 1e-1, 1e-1, 1e2)                                 
                         ret2 = ry.NLP_Solver(komo2.nlp(), verbose=0).solve() 
-                        #komo2.view_play(True, f"{ret2.eq}, {ret2.feasible}")
                         
                         if ret2.feasible:                              
                             multiplier *= 2
-                #print("Multiplier:", multiplier )
 
-                        #komo2.view_play(True, f"{ret2.eq}")
                 new_node.multiplier = multiplier
                 self.node_score(new_node)
 
@@ -599,8 +578,6 @@ class SeGMan():
         if node.moved_obj == o:
             return True, P
         
-        #Ct.frame(o).setContact(0)
-        #is_reachable, _ =self.run_rrt(Ct, node.C.frame(o).getPosition()[0:2], [], 2, N=1)
         is_reachable, _ = self.find_pick_path(node.C, self.agent, o, FS=P, verbose=self.verbose, K=2, N=1)  
         return is_reachable, P
 
@@ -800,7 +777,7 @@ class SeGMan():
 
             for k in range(0, K+1):
 
-                if verbose > -1:
+                if verbose > 1:
                     print(f"pi:{pi}, tot: {len(P)-1}")
                     print("Step:", step)
 
@@ -808,8 +785,6 @@ class SeGMan():
                     print(f"Trying Move KOMO for {k+1} time")
 
                 Ct.addFrame("subgoal", "world", "shape: marker, size: [0.1]").setPosition([*wp, 0.2])
-  
-                
                 komo = ry.KOMO(Ct, phases=2, slicesPerPhase=20, kOrder=2, enableCollisions=True)   
                 komo.addControlObjective([], 1, 1e-1)
                 komo.addControlObjective([], 2, 1e-1)
@@ -822,11 +797,8 @@ class SeGMan():
                     komo.initRandom()
 
                 ret = ry.NLP_Solver(komo.nlp(), verbose=0).solve() 
-
                 Ct.delFrame("subgoal")
-
                 feasible = ret.feasible
-                #komo.view_play(True, f"{feasible}, {ret.eq}")
                 if ret.feasible:
                     Ct.setFrameState(komo.getPathFrames()[-1])
                     fs.extend(komo.getPathFrames())
