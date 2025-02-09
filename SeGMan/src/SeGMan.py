@@ -382,7 +382,7 @@ class SeGMan():
             # The node is root node
             if node.isFirst:
                 scene_score, pts = self.scene_score(node.C_hm, o + "_cam_g", self.verbose)
-                node.pts = pts
+                node.pts[o] = pts
                 self.obj_pts[tuple(node.pair)] = pts                   
                 node.init_scene_scores[o] = scene_score
                 node.prev_scene_scores[o] = scene_score
@@ -391,7 +391,7 @@ class SeGMan():
                 
             elif node.total_score == float('-inf'):
                 scene_score, pts = self.scene_score(node.C_hm, o + "_cam_g", self.verbose)
-                node.pts = pts
+                node.pts[o] = pts
                 parent_visit = node.parent.visit
                 global_scene_score += scene_score #- node.init_scene_scores[o]
                 temporal_scene_score += scene_score - node.prev_scene_scores[o]
@@ -497,15 +497,17 @@ class SeGMan():
             base_state = P[-1]
         
         # Filtering condition
-        pts = copy.deepcopy(node.pts)
+        pts = copy.deepcopy(node.pts[o])
 
         generated_nodes = []
 
+        if len(pts) == 0:
+            print("NOOO POINTS")
+            return 
+        
         for i in range(len(pts)):
             Ct.setFrameState(base_state)
-            if len(node.pts) == 0:
-                print("NOOO POINTS")
-                return 
+
             
             obj_pos_n = pts[i] #random.choice(selected_points)
             
@@ -516,7 +518,7 @@ class SeGMan():
             
             Ct.addFrame("subgoal", "world", "shape: marker, size: [0.1]").setPosition(obj_mov_pos)  
 
-            komo = ry.KOMO(Ct, phases=2, slicesPerPhase=15, kOrder=2, enableCollisions=True)                            # Initialize LGP
+            komo = ry.KOMO(Ct, phases=2, slicesPerPhase=20, kOrder=2, enableCollisions=True)                            # Initialize LGP
             komo.addControlObjective([], 1, 1e-1)
             komo.addControlObjective([], 2, 1e-1)
             komo.addObjective([], ry.FS.accumulatedCollisions, [], ry.OT.eq, scale=1e2)                                                                                        # Randomize the initial configuration
@@ -541,7 +543,7 @@ class SeGMan():
                 new_node = Node(C=Ct, pair=node.pair, C_hm=node.C_hm, parent=node, layer=node.layer+1, FS=fs, init_scene_scores=node.init_scene_scores, prev_scene_scores=node.prev_scene_scores, moved_obj=o)
 
                 multiplier = 1
-                
+                #komo.view_play(True, f"{ret.feasible}, {ret.eq}")
                 for ob in node.pair:
                     if ob != o:
                         #print("Checking for ", ob)
@@ -785,7 +787,7 @@ class SeGMan():
                     print(f"Trying Move KOMO for {k+1} time")
 
                 Ct.addFrame("subgoal", "world", "shape: marker, size: [0.1]").setPosition([*wp, 0.2])
-                komo = ry.KOMO(Ct, phases=2, slicesPerPhase=20, kOrder=2, enableCollisions=True)   
+                komo = ry.KOMO(Ct, phases=2, slicesPerPhase=30, kOrder=2, enableCollisions=True)   
                 komo.addControlObjective([], 1, 1e-1)
                 komo.addControlObjective([], 2, 1e-1)
                 komo.addObjective([], ry.FS.accumulatedCollisions, [], ry.OT.eq, scale=1e2)                                                                                        # Randomize the initial configuration
@@ -865,7 +867,7 @@ class SeGMan():
         pts = ry.depthImage2PointCloud(depth, camera_view.getFxycxy())
         pts = self.cam_to_target(pts.reshape(-1, 3), C.getFrame("world"), cam)
         random.shuffle(pts)
-        pts = pts[::8]
+        pts = pts[::6]
 
         if(verbose>1):
             C2 = ry.Config()

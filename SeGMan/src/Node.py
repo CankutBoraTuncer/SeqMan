@@ -21,7 +21,7 @@ class Node():
         self.moved_obj = moved_obj
         self.id = random.randint(0, 1000000)
         self.reachable_objs = copy.deepcopy(pair)
-        self.pts = []
+        self.pts = {}
         self.multiplier = 1
         self.isFirst = isFirst
         
