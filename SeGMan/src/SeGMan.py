@@ -50,16 +50,16 @@ class SeGMan():
             step_size = 0.03
 
             # Find a feasible pick configuration and path
-            f, _ = self.find_pick_path(self.C, self.agent, self.obj, self.FS, self.verbose, wp_f=wp_f, K=2, N=1, step_size=step_size)
+            f, _ = self.find_pick_path(self.C, self.agent, self.obj, self.FS, self.verbose, wp_f=wp_f, K=4, N=1, step_size=step_size)
             
             # If it is not possible to go check if there is an obstacle that can be removed
             if not f: 
-                fs = False
+                fs0 = False
                 # Remove obstacle
                 if len(self.obs_list) > 0:
-                    f0, _ = self.remove_obstacle(0)
+                    fs0, _ = self.remove_obstacle(0)
                     
-                if not f0:
+                if not fs0:
                     return
             
             self.C.setFrameState(self.FS[-1])
@@ -77,15 +77,17 @@ class SeGMan():
 
                     # If it is not possible to go check if there is an obstacle that can be removed
                     if not fr: 
-                        fs = False
+                        fs1 = False
                         # Remove obstacle
                         if len(self.obs_list) > 0:
-                            fs, P = self.remove_obstacle(1)
+                            fs1, P = self.remove_obstacle(1)
                             self.C.setFrameState(self.FS[-1])
                             path_found = True
-                            break
-                        if not fs:
+                            
+                        if not fs1:
                             return
+                        else:
+                            break
 
                 # Follow the RRT path with KOMO
                 found, _, obs = self.solve_path(self.C, P, self.agent, self.obj, self.FS, self.verbose, cfc_lim=3,  K=2)
@@ -537,7 +539,7 @@ class SeGMan():
             #komo.addObjective([3,-1] , ry.FS.positionDiff, [o, "cur_pos"], ry.OT.sos, scale=1e1)  # Place constraints 
             
             ret = ry.NLP_Solver(komo.nlp(), verbose=0).solve() 
-            komo.view_play(True, f"{ret.eq}, {ret.feasible}")
+            #komo.view_play(True, f"{ret.eq}, {ret.feasible}")
             Ct.delFrame("cur_pos")
 
             if self.verbose > 1:
@@ -764,7 +766,7 @@ class SeGMan():
                     Ct.view(True, "RRT Solution")
                 for p in path:
                     Ct.setJointState(p)
-                    FS.append(Ct.getFrameState())
+                    FS.extend([Ct.getFrameState()])
                     if verbose > 1:
                         Ct.view(False, "RRT Solution")
                         time.sleep(0.01)
@@ -799,7 +801,7 @@ class SeGMan():
 
             for k in range(0, K+1):
 
-                if verbose > 0:
+                if verbose > -1:
                     print(f"pi:{pi}, tot: {len(P)-1}")
                     print("Step:", step)
 
@@ -809,14 +811,14 @@ class SeGMan():
                 Ct.addFrame("subgoal", "world", "shape: marker, size: [0.1]").setPosition([*wp, 0.2])
   
                 
-                komo = ry.KOMO(Ct, phases=4, slicesPerPhase=15, kOrder=2, enableCollisions=True)                            # Initialize LGP
+                komo = ry.KOMO(Ct, phases=2, slicesPerPhase=20, kOrder=2, enableCollisions=True)                            # Initialize LGP
                 komo.addControlObjective([], 1, 1e0)
                 komo.addControlObjective([], 2, 1e0)
                 komo.addObjective([], ry.FS.accumulatedCollisions, [], ry.OT.eq)   
                                                                                                     
-                komo.addObjective([1,-1], ry.FS.distance, [agent, obj], ry.OT.eq, scale=1e1, target=0)                                     # Pick
-                komo.addModeSwitch([2,-1], ry.SY.stable, [agent, obj], True)   
-                komo.addObjective([3,-1] , ry.FS.positionDiff, [obj, "subgoal"], ry.OT.eq, scale=1e1)  # Place constraints 
+                komo.addObjective([1,1], ry.FS.negDistance, [agent, obj], ry.OT.eq, scale=1e1, target=0)                                     # Pick
+                komo.addModeSwitch([1,2], ry.SY.stable, [agent, obj], True)   
+                komo.addObjective([1.9,2] , ry.FS.positionDiff, [obj, "subgoal"], ry.OT.eq, scale=1e1)  # Place constraints 
 
                 if k > 1:
                     komo.initRandom()
@@ -826,7 +828,8 @@ class SeGMan():
                 Ct.delFrame("subgoal")
 
                 feasible = ret.feasible
-   
+                if step == 1:
+                    komo.view_play(True, f"{feasible}, {ret.eq}")
                 if ret.feasible:
                     Ct.setFrameState(komo.getPathFrames()[-1])
                     fs.extend(komo.getPathFrames())
