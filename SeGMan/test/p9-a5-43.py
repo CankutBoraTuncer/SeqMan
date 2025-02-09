@@ -6,9 +6,9 @@ import time
 
 if __name__ == "__main__":
     C = ry.Config()
-    C.addFile("../src/config/a5-43/a5-43.g")
+    C.addFile("../src/config/p9-a5-43/p9-a5-43.g")
     C_hm = ry.Config()
-    C_hm.addFile("../src/config/a5-43/a5-43.g")
+    C_hm.addFile("../src/config/p9-a5-43/p9-a5-43.g")
 
     EGO_NAME = "ego"
     OBJ_NAME = "obj"
@@ -17,12 +17,9 @@ if __name__ == "__main__":
     C.view(True)
     C.view_close()
 
-    segman = SeGMan(C, C_hm, EGO_NAME, OBJ_NAME, GOAL, OBS_LIST, 1)
-    tic = time.time()
+    segman = SeGMan(C, C_hm, EGO_NAME, OBJ_NAME, GOAL, OBS_LIST, 0)
     if segman.run():
-        toc = time.time()
-        print("Time elapsed: {} seconds".format(toc - tic))
-        segman.display_solution(pause = 0.05)
+        segman.display_solution(pause = 0.02)
 
 
 

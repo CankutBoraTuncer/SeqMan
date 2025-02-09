@@ -2,7 +2,7 @@ Include: <../base-walls-min.g>
 
 egoJoint(world){ Q:[0.0 0.0 0.1] } # works
 ego(egoJoint) {
-    shape:ssCylinder, size:[.2 .2 .02], color:[0.1 0.3 0.5], logical:{gripper}, limits: [-4 4 -4 4], sampleUniform:1,
+    shape:ssCylinder, size:[.2 .2 .02], color:[0.96875 0.7421875 0.30859375], logical:{gripper}, limits: [-4 4 -4 4], sampleUniform:1,
     joint:transXY, contact: 1, Q:[0.0 0.0 0.01]
 }
 
@@ -14,7 +14,6 @@ wall8_h (world){ joint: rigid,shape:ssBox, Q:"t(-1.45 1.0 0.3)", size:[1.0 .1 0.
 
 objJoint(world){ Q:[0.0 0.0 0.1] } # works
 obj(objJoint) { type:ssBox size:[.3 .3 .2 .02] Q:"t(-0.9 -1.5 0)" color:[0. 0. 1.],  logical={ object }, joint:rigid, contact: 1 }
-
 
 
 

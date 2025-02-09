@@ -3,7 +3,7 @@ import random
 import copy
 
 class Node():
-    def __init__(self, C:ry.Config, pair:list, C_hm:ry.Config, parent:"Node"=None, layer:int=1, FS:list=[], total_score:float=float("-inf"), prev_scene_scores:dict={}, init_scene_scores:dict={}, moved_obj:str=""):
+    def __init__(self, C:ry.Config, pair:list, C_hm:ry.Config, parent:"Node"=None, layer:int=1, FS:list=[], total_score:float=float("-inf"), prev_scene_scores:dict={}, init_scene_scores:dict={}, moved_obj:str="", isFirst:bool=False):
         self.C = ry.Config()
         self.C.addConfigurationCopy(C)
         self.C_hm = ry.Config()
@@ -23,7 +23,8 @@ class Node():
         self.reachable_objs = copy.deepcopy(pair)
         self.pts = []
         self.multiplier = 1
-
+        self.isFirst = isFirst
+        
     def __str__(self):
         return "Node: layer={}, visit={}, pair={}, total_score={}, id={}".format(self.layer, self.visit, self.pair, self.total_score, self.id)
     

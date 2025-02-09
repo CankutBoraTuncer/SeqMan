@@ -15,7 +15,6 @@ goal_visible (floor) 	{ shape:ssBox, Q:"t(-1.2 1.3 0.1)", size:[0.2 0.2 0.1 0.00
 
 
 wall2_h (world){ shape:ssBox, Q:"t(-0.05 -1.2 0.3)", size:[3.0 .1 0.6 .02], color:[0.6953 0.515625 .453125],contact: 1 }
-
 wall8_h (world){ shape:ssBox, Q:"t(-1.45 1.0 0.3)", size:[1.0 .1 0.6 .02], color:[0.6953 0.515625 .453125], contact: 1 }
 
 objJoint(world){ Q:[0.0 0.0 0.1] } # works

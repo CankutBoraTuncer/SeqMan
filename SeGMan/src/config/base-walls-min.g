@@ -11,6 +11,9 @@ outwall_front (world){ shape:ssBox, Q:[-2. 0 0.2], size:[.1 4.1 0.4 .04] , color
 
 #sub-goal1 (floor){ shape:ssBox, Q:<t(-0.7 -0.6 .0)>, size:[0.1 0.1 .1 .005], color:[0.3 .3 .3 0.9], contact:0, logical:{table} }
 
+camera_gl(world){ Q:"t(0 0 16) d(180 1 0 0)" shape:camera width:900 height:900}
+
+
 
 
 
