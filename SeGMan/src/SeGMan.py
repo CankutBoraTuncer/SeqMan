@@ -532,12 +532,12 @@ class SeGMan():
 
 
             komo = ry.KOMO(Ct, phases=2, slicesPerPhase=15, kOrder=2, enableCollisions=True)                            # Initialize LGP
-            komo.addControlObjective([], 1, 1e0)
-            komo.addControlObjective([], 2, 1e0)
+            komo.addControlObjective([], 1, 1e-1)
+            komo.addControlObjective([], 2, 1e-1)
             komo.addObjective([], ry.FS.accumulatedCollisions, [], ry.OT.eq, scale=1e2)                                                                                        # Randomize the initial configuration
-            komo.addObjective([0,1], ry.FS.distance, [self.agent, o], ry.OT.eq, scale=1e2, target=0)                                     # Pick
+            komo.addObjective([1], ry.FS.distance, [self.agent, o], ry.OT.eq, scale=1e2, target=0)                                     # Pick
             komo.addModeSwitch([1,2], ry.SY.stable, [self.agent, o], True)   
-            komo.addObjective([1,2] , ry.FS.positionDiff, [o, "subgoal"], ry.OT.sos, scale=1e0)  # Place constraints 
+            komo.addObjective([2] , ry.FS.positionDiff, [o, "subgoal"], ry.OT.sos, scale=1e1)  # Place constraints 
             
             ret = ry.NLP_Solver(komo.nlp(), verbose=0).solve() 
             #komo.view_play(True, f"{ret.eq}, {ret.feasible}")
@@ -810,7 +810,7 @@ class SeGMan():
                 Ct.addFrame("subgoal", "world", "shape: marker, size: [0.1]").setPosition([*wp, 0.2])
   
                 
-                komo = ry.KOMO(Ct, phases=2, slicesPerPhase=10, kOrder=2, enableCollisions=True)                            # Initialize LGP
+                komo = ry.KOMO(Ct, phases=2, slicesPerPhase=15, kOrder=2, enableCollisions=True)   
                 komo.addControlObjective([], 1, 1e-1)
                 komo.addControlObjective([], 2, 1e-1)
                 komo.addObjective([], ry.FS.accumulatedCollisions, [], ry.OT.eq, scale=1e2)                                                                                        # Randomize the initial configuration
@@ -826,7 +826,6 @@ class SeGMan():
                 Ct.delFrame("subgoal")
 
                 feasible = ret.feasible
-                #if step == 1:
                 #komo.view_play(True, f"{feasible}, {ret.eq}")
                 if ret.feasible:
                     Ct.setFrameState(komo.getPathFrames()[-1])
