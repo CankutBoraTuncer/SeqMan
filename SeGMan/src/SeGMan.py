@@ -322,6 +322,13 @@ class SeGMan():
         if self.verbose > 0:
             print("Selecting the node")
 
+        if prev_node != None:
+            weight_discount = 0.95
+            for p in self.OP:
+                if p.objects == prev_node.pair:
+                    p.weight *= weight_discount
+                    break
+
         best_score = float('-inf')
         best_node = None
 
@@ -347,9 +354,12 @@ class SeGMan():
 # -------------------------------------------------------------------------------------------------------------- #
 
     def node_score(self, node:Node, obs_path:list=[]):
-        c0 = 5
-        gamma = 1
-        weight_discount = 0.95
+        c0 = 2
+        node_weight = 1
+        for p in self.OP:
+            if p.objects == node.pair:
+                node_weight = p.weight
+                break
 
         for o in node.pair:
             node.C_hm.frame(o).setPosition(node.C.frame(o).getPosition())
@@ -358,15 +368,7 @@ class SeGMan():
         parent_visit = 1
 
         global_scene_score = 0
-        temporal_scene_score = 0
-        
-        node_weight = 1
-        cur_pair = None
-        for p in self.OP:
-            if p.objects == node.pair:
-                cur_pair = p
-                node_weight = p.weight
-
+   
         if node.isFirst:
             for i, p in enumerate(obs_path[tuple(node.pair)]):
                 if i == 0:
@@ -384,43 +386,29 @@ class SeGMan():
                 scene_score, pts = self.scene_score(node.C_hm, o + "_cam_g", self.verbose)
                 node.pts[o] = pts
                 self.obj_pts[tuple(node.pair)] = pts                   
-                node.init_scene_scores[o] = scene_score
-                node.prev_scene_scores[o] = scene_score
                 global_scene_score += scene_score
-                temporal_scene_score += 0
                 
             elif node.total_score == float('-inf'):
                 scene_score, pts = self.scene_score(node.C_hm, o + "_cam_g", self.verbose)
                 node.pts[o] = pts
                 parent_visit = node.parent.visit
-                global_scene_score += scene_score #- node.init_scene_scores[o]
-                temporal_scene_score += scene_score - node.prev_scene_scores[o]
-                node.prev_scene_scores[o] = scene_score
+                global_scene_score += scene_score
         
         node.isFirst = False
 
         global_scene_score /= len(node.pair)
-        global_scene_score *= 0.006
-
-        temporal_scene_score /= len(node.pair)
-        temporal_scene_score *= 0.006
 
         # Just adjusting the visit count
         if node.total_score != float('-inf'):
             global_scene_score = node.global_scene_score
-            temporal_scene_score = node.temporal_scene_score
             if node.parent != None:
                 parent_visit = node.parent.visit
             visit = node.visit
-            if cur_pair != None:
-                cur_pair.weight *= weight_discount
         else:
             node.global_scene_score = global_scene_score
-            node.temporal_scene_score = temporal_scene_score
 
-        weighted_scene_score = ((1-gamma) * temporal_scene_score + gamma * global_scene_score) 
     
-        exploitation = weighted_scene_score * math.sqrt(node_weight) * node.multiplier
+        exploitation = (global_scene_score * math.sqrt(node_weight) * node.multiplier) ** 2
         exploration  = c0 * math.sqrt(math.log(1+parent_visit) / visit)
         total_node_score = exploitation + exploration
         
@@ -429,7 +417,7 @@ class SeGMan():
         if self.verbose > 0:
             print("Scored Node: ", node)
             if self.verbose > 0:
-                print(f"Multiplier: {node.multiplier}, Global Scene Score: ", global_scene_score, "Temporal Scene Score: ", temporal_scene_score)
+                print(f"Multiplier: {node.multiplier}, Global Scene Score: ", global_scene_score, "Node weight: ", node_weight)
                 print(f"Exploitation: {exploitation}, Exploration: {exploration}, Total Score: {total_node_score}")
             
 
@@ -543,7 +531,8 @@ class SeGMan():
                 new_node = Node(C=Ct, pair=node.pair, C_hm=node.C_hm, parent=node, layer=node.layer+1, FS=fs, init_scene_scores=node.init_scene_scores, prev_scene_scores=node.prev_scene_scores, moved_obj=o)
 
                 multiplier = 1
-                #komo.view_play(True, f"{ret.feasible}, {ret.eq}")
+                #if o == "obj2":
+                #    komo.view_play(True, f"{ret.feasible}, {ret.eq}")
                 for ob in node.pair:
                     if ob != o:
                         #print("Checking for ", ob)
@@ -557,12 +546,16 @@ class SeGMan():
                             multiplier *= 2
 
                 new_node.multiplier = multiplier
-                self.node_score(new_node)
+                #if o == "obj2":
+                #    self.verbose = 2
 
+                self.node_score(new_node)
+                
                 generated_nodes.append(new_node)
                 feas_count += 1
 
         generated_nodes = sorted(generated_nodes, key=lambda n: n.total_score, reverse=True)
+
         N.extend(generated_nodes[:sample_count])
 
 # -------------------------------------------------------------------------------------------------------------- #
@@ -844,14 +837,14 @@ class SeGMan():
         scene_score = 0
         for i, r in enumerate(img):
             for j, rgb in enumerate(r):
-                if rgb[1] > 150 and rgb[0] < 150 and rgb[2] < 150:
-                    scene_score += 2 
-                elif rgb[0] < 150 and rgb[1] < 150 and rgb[2] > 150:
-                    scene_score += 3  
+                if rgb[0]*1.2 < rgb[1] and rgb[2]*1.2 < rgb[1] and rgb[1] > 100:
+                    scene_score += 0.0011
+                elif rgb[0]*1.2 < rgb[2] and rgb[1]*1.2 < rgb[2] and rgb[2] > 100:
+                    scene_score += 0.0022  
                 else:
                     depth[i][j] = 0
                     img_mask[i][j] = [0, 0, 0]
-        
+
         if(self.verbose > 1):
             fig = plt.figure()
             fig.suptitle(f"Cam Frame: {cam_frame}", fontsize=16)
@@ -867,9 +860,9 @@ class SeGMan():
         pts = ry.depthImage2PointCloud(depth, camera_view.getFxycxy())
         pts = self.cam_to_target(pts.reshape(-1, 3), C.getFrame("world"), cam)
         random.shuffle(pts)
-        pts = pts[::6]
+        pts = pts[::8]
 
-        if(verbose>1):
+        if(self.verbose > 2):
             C2 = ry.Config()
             C2.addConfigurationCopy(C)
             C3 = ry.Config()

@@ -28,7 +28,7 @@ obj1_hm_r(obj1) {
     joint:rigid, friction:.1  contact: 1
 }
 obj1_hm_b(world) {
-    shape:ssBox, Q:[1.6 -1 0.1], size:[.5 .1 .3 .02], logical={ object } nomass:1,  color:[0 0 1 ],
+    shape:ssBox, Q:[1.4 -1 0.1], size:[.7 .1 .3 .02], logical={ object } nomass:1,  color:[0 0 1 ],
     joint:rigid, friction:.1  contact: 1
 }
 #obj1_hm_y(obj1) {
@@ -50,7 +50,7 @@ obj2_hm_r(obj2) {
     joint:rigid, friction:.1  contact: 1
 }
 obj2_hm_b(world) {
-    shape:ssBox, Q:[1.5 -0.8 0.1], size:[.7 .1 .3 .02], logical={ object } nomass:1,  color:[0 0 1 ],
+    shape:ssBox, Q:[1.5 -0.85 0.1], size:[.7 .1 .3 .02], logical={ object } nomass:1,  color:[0 0 1 ],
     joint:rigid, friction:.1  contact: 1
 }
 #obj2_hm_y(obj2) {
@@ -68,7 +68,7 @@ obj3(obj3Joint) {
     joint:rigid, friction:.1  contact: 1
 }
 obj3_hm_r(obj3) {
-    shape:ssBox, Q:[0 0 0], size:[.1 .5 .6 .02], logical={ object } nomass:1,  color:[1 0 0 ],
+    shape:ssBox, Q:[0 0 0], size:[.15 .6 .6 .02], logical={ object } nomass:1,  color:[1 0 0 ],
     joint:rigid, friction:.1  contact: 1
 }
 obj3_hm_b(world) {
